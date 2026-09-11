@@ -1,0 +1,5 @@
+# decoded APK working folder (large, regenerable via apktool)
+decoded/
+# local build artifacts
+*.apk
+!town.pony.game v1.3-2387_antisplit.apk
