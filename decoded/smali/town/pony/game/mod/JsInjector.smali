@@ -74,7 +74,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_ret_false
+    if-eqz v0, :cond_ret_false
 
     :cond_ret_true
     const/4 v0, 0x1
