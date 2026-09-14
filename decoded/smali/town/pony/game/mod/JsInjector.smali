@@ -17,6 +17,14 @@
 # - Never throws: every entry point is fully defensive; a missing/empty file
 #   or a non-pony.town URL is a silent no-op.
 #
+# DIAG instrumentation (branch diag/instrument): onPageStarted/onPageFinished
+# log one line per stage ("... webview=null", "... url=<url> gate=<0|1>",
+# "... file=<0|1> size=<n>", "... injected") via appendLog() -> logcat tag
+# "PTMod" AND /Android/data/town.pony.game/files/ptmod-diag.log, and show a
+# Toast "PTMod: custom.js loaded (<size>B)" on successful injection. Script
+# contents are NEVER logged (size only). Behavior is otherwise identical to
+# the plain Stage 3 injector.
+#
 # No permissions added. No WakeLock. Does not touch PonyTownInterface,
 # auth, billing, or the game's own JS.
 #
@@ -100,45 +108,129 @@
 # try/catch IIFE inside a one-shot DOM-ready guard. If the document does
 # not exist yet, the wrapper retries in-JS (max 20 x 100 ms) and then gives
 # up silently -- the onPageFinished path is the guaranteed fallback.
+# DIAG: logs each decision point (see header) and a Toast on success.
 # ---------------------------------------------------------------------------
 .method public static onPageStarted(Landroid/webkit/WebView;Ljava/lang/String;)V
-    .locals 2
+    .locals 6
 
-    if-eqz p0, :goto_ret
+    if-nez p0, :goto_gate
 
+    const-string v0, "onPageStarted webview=null"
+
+    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
+
+    return-void
+
+    :goto_gate
     invoke-static {p1}, Ltown/pony/game/mod/JsInjector;->isPonyTownUrl(Ljava/lang/String;)Z
 
     move-result v0
+
+    invoke-static {p1}, Ljava/lang/String;->valueOf(Ljava/lang/Object;)Ljava/lang/String;
+
+    move-result-object v1
+
+    const-string v2, "onPageStarted url="
+
+    invoke-virtual {v2, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v1
+
+    const-string v2, " gate="
+
+    invoke-virtual {v1, v2}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {v0}, Ljava/lang/String;->valueOf(Z)Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-virtual {v1, v2}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {p0, v1}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
 
     if-eqz v0, :goto_ret
 
     invoke-virtual {p0}, Landroid/webkit/WebView;->getContext()Landroid/content/Context;
 
-    move-result-object v0
-
-    invoke-static {v0}, Ltown/pony/game/mod/JsInjector;->readCustomScript(Landroid/content/Context;)Ljava/lang/String;
-
     move-result-object v1
 
-    invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->isEmpty(Ljava/lang/String;)Z
+    invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->readCustomScript(Landroid/content/Context;)Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-static {v2}, Ltown/pony/game/mod/JsInjector;->isEmpty(Ljava/lang/String;)Z
+
+    move-result v3
+
+    if-nez v3, :goto_size_zero
+
+    invoke-virtual {v2}, Ljava/lang/String;->length()I
 
     move-result v0
 
-    if-nez v0, :goto_ret
+    goto :goto_size_done
 
-    const-string v0, "(function(){ var _n=0; function _r(){ if (window.__ptModInjected) return; if (document && document.documentElement) { window.__ptModInjected=1; (function(){ try { "
+    :goto_size_zero
+    const/4 v0, 0x0
 
-    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+    :goto_size_done
+    const-string v4, "onPageStarted file="
 
-    move-result-object v0
+    if-nez v3, :goto_file_zero
 
-    const-string v1, " } catch(e) { console.error(\"Custom Script Error:\", e); } })(); } else if (++_n < 20) { setTimeout(_r, 100); } } _r(); })();"
+    const-string v5, "1"
 
-    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+    goto :goto_file_str
 
-    move-result-object v0
+    :goto_file_zero
+    const-string v5, "0"
 
-    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+    :goto_file_str
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    const-string v5, " size="
+
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    invoke-static {v0}, Ljava/lang/String;->valueOf(I)Ljava/lang/String;
+
+    move-result-object v5
+
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    invoke-static {p0, v4}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
+
+    if-nez v3, :goto_ret
+
+    const-string v4, "(function(){ var _n=0; function _r(){ if (window.__ptModInjected) return; if (document && document.documentElement) { window.__ptModInjected=1; (function(){ try { "
+
+    invoke-virtual {v4, v2}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    const-string v5, " } catch(e) { console.error(\"Custom Script Error:\", e); } })(); } else if (++_n < 20) { setTimeout(_r, 100); } } _r(); })();"
+
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    invoke-static {p0, v4}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+
+    const-string v4, "onPageStarted injected"
+
+    invoke-static {p0, v4}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
+
+    invoke-static {v1, v0}, Ltown/pony/game/mod/JsInjector;->showInjectedToast(Landroid/content/Context;I)V
 
     :goto_ret
     return-void
@@ -147,45 +239,129 @@
 # ---------------------------------------------------------------------------
 # public static void onPageFinished(WebView, String url)
 # Page-finished injection: plain §7 wrapper (document is guaranteed to exist).
+# DIAG: logs each decision point (see header) and a Toast on success.
 # ---------------------------------------------------------------------------
 .method public static onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V
-    .locals 2
+    .locals 6
 
-    if-eqz p0, :goto_ret
+    if-nez p0, :goto_gate
 
+    const-string v0, "onPageFinished webview=null"
+
+    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
+
+    return-void
+
+    :goto_gate
     invoke-static {p1}, Ltown/pony/game/mod/JsInjector;->isPonyTownUrl(Ljava/lang/String;)Z
 
     move-result v0
+
+    invoke-static {p1}, Ljava/lang/String;->valueOf(Ljava/lang/Object;)Ljava/lang/String;
+
+    move-result-object v1
+
+    const-string v2, "onPageFinished url="
+
+    invoke-virtual {v2, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v1
+
+    const-string v2, " gate="
+
+    invoke-virtual {v1, v2}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {v0}, Ljava/lang/String;->valueOf(Z)Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-virtual {v1, v2}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {p0, v1}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
 
     if-eqz v0, :goto_ret
 
     invoke-virtual {p0}, Landroid/webkit/WebView;->getContext()Landroid/content/Context;
 
-    move-result-object v0
-
-    invoke-static {v0}, Ltown/pony/game/mod/JsInjector;->readCustomScript(Landroid/content/Context;)Ljava/lang/String;
-
     move-result-object v1
 
-    invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->isEmpty(Ljava/lang/String;)Z
+    invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->readCustomScript(Landroid/content/Context;)Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-static {v2}, Ltown/pony/game/mod/JsInjector;->isEmpty(Ljava/lang/String;)Z
+
+    move-result v3
+
+    if-nez v3, :goto_size_zero
+
+    invoke-virtual {v2}, Ljava/lang/String;->length()I
 
     move-result v0
 
-    if-nez v0, :goto_ret
+    goto :goto_size_done
 
-    const-string v0, "(function(){ try { "
+    :goto_size_zero
+    const/4 v0, 0x0
 
-    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+    :goto_size_done
+    const-string v4, "onPageFinished file="
 
-    move-result-object v0
+    if-nez v3, :goto_file_zero
 
-    const-string v1, " } catch(e) { console.error(\"Custom Script Error:\", e); } })();"
+    const-string v5, "1"
 
-    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+    goto :goto_file_str
 
-    move-result-object v0
+    :goto_file_zero
+    const-string v5, "0"
 
-    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+    :goto_file_str
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    const-string v5, " size="
+
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    invoke-static {v0}, Ljava/lang/String;->valueOf(I)Ljava/lang/String;
+
+    move-result-object v5
+
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    invoke-static {p0, v4}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
+
+    if-nez v3, :goto_ret
+
+    const-string v4, "(function(){ try { "
+
+    invoke-virtual {v4, v2}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    const-string v5, " } catch(e) { console.error(\"Custom Script Error:\", e); } })();"
+
+    invoke-virtual {v4, v5}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v4
+
+    invoke-static {p0, v4}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+
+    const-string v4, "onPageFinished injected"
+
+    invoke-static {p0, v4}, Ltown/pony/game/mod/JsInjector;->appendLog(Landroid/content/Context;Ljava/lang/String;)V
+
+    invoke-static {v1, v0}, Ltown/pony/game/mod/JsInjector;->showInjectedToast(Landroid/content/Context;I)V
 
     :goto_ret
     return-void
@@ -237,6 +413,138 @@
     const/4 v0, 0x1
 
     return v0
+.end method
+
+# ---------------------------------------------------------------------------
+# private static void appendLog(Context, String msg)
+# DIAG helper: appends one line "MM-DD HH:MM:SS <msg>" to logcat (tag
+# "PTMod") and to Context.getExternalFilesDir("")/ptmod-diag.log
+# (= /Android/data/town.pony.game/files/ptmod-diag.log). Fully defensive:
+# the whole body is wrapped in try/catch Throwable so it can never throw
+# into the game. A null Context still logs to logcat (file part skipped).
+# ---------------------------------------------------------------------------
+.method private static appendLog(Landroid/content/Context;Ljava/lang/String;)V
+    .locals 4
+
+    :try_start_0
+    new-instance v0, Ljava/text/SimpleDateFormat;
+
+    const-string v1, "MM-dd HH:mm:ss"
+
+    invoke-direct {v0, v1}, Ljava/text/SimpleDateFormat;-><init>(Ljava/lang/String;)V
+
+    new-instance v1, Ljava/util/Date;
+
+    invoke-direct {v1}, Ljava/util/Date;-><init>()V
+
+    invoke-virtual {v0, v1}, Ljava/text/SimpleDateFormat;->format(Ljava/util/Date;)Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, " "
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v0
+
+    invoke-virtual {v0, p1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "PTMod"
+
+    invoke-static {v1, v0}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    if-eqz p0, :goto_file_done
+
+    const-string v1, ""
+
+    invoke-virtual {p0, v1}, Landroid/content/Context;->getExternalFilesDir(Ljava/lang/String;)Ljava/io/File;
+
+    move-result-object v1
+
+    if-eqz v1, :goto_file_done
+
+    const-string v2, "ptmod-diag.log"
+
+    new-instance v3, Ljava/io/File;
+
+    invoke-direct {v3, v1, v2}, Ljava/io/File;-><init>(Ljava/io/File;Ljava/lang/String;)V
+
+    const/4 v1, 0x1
+
+    new-instance v2, Ljava/io/FileOutputStream;
+
+    invoke-direct {v2, v3, v1}, Ljava/io/FileOutputStream;-><init>(Ljava/io/File;Z)V
+
+    invoke-virtual {v0}, Ljava/lang/String;->getBytes()[B
+
+    move-result-object v1
+
+    invoke-virtual {v2, v1}, Ljava/io/FileOutputStream;->write([B)V
+
+    const/16 v1, 0xa
+
+    invoke-virtual {v2, v1}, Ljava/io/FileOutputStream;->write(I)V
+
+    invoke-virtual {v2}, Ljava/io/FileOutputStream;->close()V
+
+    :goto_file_done
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    return-void
+.end method
+
+# ---------------------------------------------------------------------------
+# private static void showInjectedToast(Context, int size)
+# DIAG helper: shows "PTMod: custom.js loaded (<size>B)" after a successful
+# injection. Fully defensive: try/catch Throwable, never crashes the game.
+# ---------------------------------------------------------------------------
+.method private static showInjectedToast(Landroid/content/Context;I)V
+    .locals 2
+
+    if-eqz p0, :goto_ret
+
+    :try_start_0
+    const-string v0, "PTMod: custom.js loaded ("
+
+    invoke-static {p1}, Ljava/lang/String;->valueOf(I)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "B)"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v0
+
+    const/4 v1, 0x1
+
+    invoke-static {p0, v0, v1}, Landroid/widget/Toast;->makeText(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Landroid/widget/Toast;->show()V
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
 .end method
 
 # ---------------------------------------------------------------------------
