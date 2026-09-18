@@ -16,6 +16,11 @@
 # - Page-finished path (onPageFinished): injects the plain §7 wrapper.
 # - Never throws: every entry point is fully defensive; a missing/empty file
 #   or a non-pony.town URL is a silent no-op.
+# - When custom.js is absent, both paths evaluate a tiny built-in bootstrap
+#   that renders a "LOAD SCRIPT" button; the button calls PtModBridge
+#   (town.pony.game.mod.PtModBridge) which opens the system SAF file picker.
+#   The bootstrap only patches the DOM -- the picked script is executed
+#   later, and only if the page still passes the same pony.town gate.
 #
 # No permissions added. No WakeLock. Does not touch PonyTownInterface,
 # auth, billing, or the game's own JS.
@@ -124,7 +129,8 @@
 
     move-result v0
 
-    if-nez v0, :goto_ret
+    # no custom.js -> expose the "LOAD SCRIPT" picker button instead (SAF)
+    if-eqz v0, :goto_bootstrap
 
     const-string v0, "(function(){ var _n=0; function _r(){ if (window.__ptModInjected) return; if (document && document.documentElement) { window.__ptModInjected=1; (function(){ try { "
 
@@ -140,6 +146,13 @@
 
     invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
 
+    goto :goto_ret
+
+    :goto_bootstrap
+    const-string v0, "(function(){ if(window.__ptBtn) return; var n=0; var b=document.createElement('button'); b.id='ptLoadBtn'; b.textContent='LOAD SCRIPT'; b.style.cssText='position:fixed;top:8px;left:8px;z-index:99999;padding:6px 12px;background:#c33;color:#fff;border:0;border-radius:4px;font:bold 13px sans-serif'; b.onclick=function(){ if(window.PtModBridge) PtModBridge.pickScript(); }; var a=function(){ if(document.documentElement && window.PtModBridge){ if(window.__ptBtn) return; document.documentElement.appendChild(b); window.__ptBtn=1; return; } if(++n<25) setTimeout(a,200); }; a(); })();"
+
+    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+
     :goto_ret
     return-void
 .end method
@@ -147,9 +160,16 @@
 # ---------------------------------------------------------------------------
 # public static void onPageFinished(WebView, String url)
 # Page-finished injection: plain §7 wrapper (document is guaranteed to exist).
+# Also registers the "PtModBridge" JS interface (idempotent per WebView) so the
+# page can request the SAF file picker; and, when custom.js is absent, shows
+# the floating "LOAD SCRIPT" button.
 # ---------------------------------------------------------------------------
 .method public static onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V
     .locals 2
+
+    # the bridge must exist even on the very first load (gate-safe: it only
+    # registers an interface, nothing is executed until the page asks for it)
+    invoke-static {p0}, Ltown/pony/game/mod/PtModBridge;->ensureBridge(Landroid/webkit/WebView;)V
 
     if-eqz p0, :goto_ret
 
@@ -171,7 +191,8 @@
 
     move-result v0
 
-    if-nez v0, :goto_ret
+    # no custom.js -> expose the "LOAD SCRIPT" picker button instead (SAF)
+    if-eqz v0, :goto_bootstrap
 
     const-string v0, "(function(){ try { "
 
@@ -184,6 +205,13 @@
     invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v0
+
+    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+
+    goto :goto_ret
+
+    :goto_bootstrap
+    const-string v0, "(function(){ if(window.__ptBtn) return; var n=0; var b=document.createElement('button'); b.id='ptLoadBtn'; b.textContent='LOAD SCRIPT'; b.style.cssText='position:fixed;top:8px;left:8px;z-index:99999;padding:6px 12px;background:#c33;color:#fff;border:0;border-radius:4px;font:bold 13px sans-serif'; b.onclick=function(){ if(window.PtModBridge) PtModBridge.pickScript(); }; var a=function(){ if(document.documentElement && window.PtModBridge){ if(window.__ptBtn) return; document.documentElement.appendChild(b); window.__ptBtn=1; return; } if(++n<25) setTimeout(a,200); }; a(); })();"
 
     invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
 

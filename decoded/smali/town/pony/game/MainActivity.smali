@@ -423,6 +423,17 @@
     return-void
 .end method
 
+# ---- PonyTown Mod (SAF picker): forward the file-picker result ----
+.method public onActivityResult(IILandroid/content/Intent;)V
+    .locals 0
+
+    invoke-super {p0, p1, p2, p3}, Lg/i;->onActivityResult(IILandroid/content/Intent;)V
+
+    invoke-static {p1, p2, p3}, Ltown/pony/game/mod/PtModBridge;->onActivityResult(IILandroid/content/Intent;)V
+
+    return-void
+.end method
+
 .method public final onDestroy()V
     .locals 3
 
