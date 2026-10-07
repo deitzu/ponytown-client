@@ -145,3 +145,10 @@ Branch: fix/native-mouse-click-scroll
 - Trackpad mode now supports two-finger scrolling and on-screen up/down scroll buttons.
 - Added .github/workflows/rebuild-patched-apk.yml to rebuild the tracked decoded APK with Apktool 2.10.0 and upload the unsigned APK artifact.
 - Runtime behavior is not device-verified here.
+
+## Update 2026-10-08 — trackpad: move while L/R is held
+
+- **Bug:** with the on-screen L/R button held, the cursor could not move. `ui.js` counted the finger resting on the L/R button as a second finger, so every swipe was treated as a two-finger scroll gesture; `tp.id` also stayed set after the game finger lifted, so the next touch was lost.
+- **Fix (`decoded/assets/ptmod/ui.js`):** only fingers that are not on the mod UI count toward the two-finger gesture (`gameTouches`); tracking resets when the last game finger lifts; taps and tap-then-hold are ignored while an L/R button is held (they used to release it); L/R release also handles `lostpointercapture`.
+- **Drag test:** Mouse tab now has a drag-test box (ball follows the cursor while held, plus an HTML5 draggable chip and drop zone) and counters for down / move(held) / up / dragstart / drop, so drag and drop can be verified on a device.
+- Not verified on a device yet.

@@ -142,6 +142,11 @@
     'input[type=range]{flex:1.2}',
     '.hover{margin:8px 0;padding:14px;border:2px dashed #30363d;border-radius:10px;text-align:center;color:#8b949e;background:#161b22}',
     '.hover:hover{background:#12351f;border-color:#2ea043;color:#e6edf3}',
+    '#dpad{position:relative;user-select:none;-webkit-user-select:none;touch-action:none}',
+    '#dball{position:absolute;left:8px;top:8px;width:18px;height:18px;border-radius:9px;background:#f0b72f;pointer-events:none}',
+    '.dnd{justify-content:center;margin:10px 0 4px}',
+    '.chip{padding:8px 12px;border-radius:8px;background:#1f6feb;color:#fff;font-weight:700}',
+    '.zone{padding:8px 12px;border-radius:8px;border:2px dashed #8b949e;color:#8b949e}',
     '.hover small{display:block;margin-top:4px;font-size:11px}',
     '.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px;margin:6px 0}',
     '.ok{color:#3fb950}.bad{color:#ff7b72}',
@@ -232,7 +237,7 @@
     h += (S.tab === 'mouse') ? tabMouse() : (S.tab === 'keys') ? tabKeys() : (S.tab === 'about') ? tabAbout() : tabScripts();
     h += '</div>';
     panel.innerHTML = h;
-    if (S.tab === 'mouse') bindHoverTest();
+    if (S.tab === 'mouse') { bindHoverTest(); bindDragTest(); }
   }
 
   function tabScripts() {
@@ -269,6 +274,7 @@
     h += '<label class="f"><span>On-screen L/R buttons (trackpad)</span><input type="checkbox" data-a="lr"' + (S.lr ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Two-finger scroll + ▲▼ buttons</span><input type="checkbox" data-a="scrollOn"' + (S.scrollOn ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Report hover/fine pointer to page (matchMedia)</span><input type="checkbox" data-a="spoof"' + (S.spoofMedia ? ' checked' : '') + '></label>';
+    h += '<div class="hover" id="dpad">Drag test: hold L (or tap-hold) and move<div id="dball"></div><div class="row dnd"><div class="chip" id="dchip" draggable="true">drag me</div><div class="zone" id="dzone">drop here</div></div><small id="dlog">down 0 | move(held) 0 | up 0 | dragstart 0 | drop 0</small></div>';
     h += '<div class="hover" id="ht">Hover test area<small id="hti">move the cursor here (trackpad mode: swipe outside the panel)</small></div>';
     return h;
   }
@@ -301,6 +307,27 @@
   }
 
   // ------------------------------------------------------------------ panel events
+  function bindDragTest() {
+    var pad = panel.querySelector('#dpad'), ball = panel.querySelector('#dball'), chip = panel.querySelector('#dchip'),
+        zone = panel.querySelector('#dzone'), log = panel.querySelector('#dlog');
+    if (!pad || !ball || !chip || !zone || !log) return;
+    var c = { down: 0, move: 0, up: 0, ds: 0, drop: 0 }, active = false;
+    function show(e) {
+      log.textContent = 'down ' + c.down + ' | move(held) ' + c.move + ' | up ' + c.up + ' | dragstart ' + c.ds + ' | drop ' + c.drop +
+        (e ? ' | trusted=' + e.isTrusted + ' buttons=' + e.buttons : '');
+    }
+    function place(e) {
+      var r = pad.getBoundingClientRect();
+      ball.style.left = Math.max(0, Math.min(r.width - 18, e.clientX - r.left - 9)) + 'px';
+      ball.style.top = Math.max(0, Math.min(r.height - 18, e.clientY - r.top - 9)) + 'px';
+    }
+    pad.addEventListener('mousedown', function (e) { active = true; c.down++; place(e); show(e); });
+    pad.addEventListener('mousemove', function (e) { if (active && (e.buttons & 3)) { c.move++; place(e); show(e); } });
+    panel.addEventListener('mouseup', function (e) { if (active) { active = false; c.up++; show(e); } });
+    chip.addEventListener('dragstart', function (e) { c.ds++; try { e.dataTransfer.setData('text/plain', 'ptmod'); } catch (x) { /* ignore */ } show(e); });
+    zone.addEventListener('dragover', function (e) { e.preventDefault(); });
+    zone.addEventListener('drop', function (e) { e.preventDefault(); c.drop++; zone.textContent = 'dropped!'; show(e); });
+  }
   function bindHoverTest() {
     var ht = root.getElementById ? root.getElementById('ht') : panel.querySelector('#ht');
     var hi = panel.querySelector('#hti');
@@ -441,12 +468,23 @@
   function mClick(b) { mDown(b); setTimeout(mUp, 45); }
 
   // L/R buttons (trackpad)
+  var btnHold = 0;   // number of on-screen L/R buttons currently pressed
   (function () {
     function mk(label, btn) {
       var b = el('button', 'lrb', label);
-      b.addEventListener('pointerdown', function (e) { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } b.className = 'lrb down'; mDown(btn); });
-      var up = function () { b.className = 'lrb'; if (held === btn) mUp(); };
-      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+      var downId = null;
+      b.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        try { b.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+        if (downId === null) btnHold++;
+        downId = e.pointerId; b.className = 'lrb down'; mDown(btn);
+      });
+      var up = function () {
+        b.className = 'lrb';
+        if (downId !== null) { downId = null; if (btnHold > 0) btnHold--; }
+        if (held === btn) mUp();
+      };
+      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
       return b;
     }
     lrBar.appendChild(mk('L', 1)); lrBar.appendChild(mk('R', 2));
@@ -485,6 +523,18 @@
     for (var i = 0; i < l.length; i++) if (l[i].identifier === id) return l[i];
     return null;
   }
+  // Fingers on the game area only: a finger resting on an on-screen L/R/scroll
+  // button (its target is retargeted to our shadow host) must NOT count, or a
+  // held L/R button turns every swipe into a "two-finger scroll".
+  function gameTouches(e) {
+    var out = [], l = e.touches;
+    for (var i = 0; i < l.length; i++) {
+      var n = l[i].target, ui = (n === host);
+      try { if (!ui && n && n.getRootNode && n.getRootNode() === root) ui = true; } catch (x) { /* ignore */ }
+      if (!ui) out.push(l[i]);
+    }
+    return out;
+  }
   function onTouch(e) {
     if (!S.mouseOn || inUi(e)) return;
     if (e.cancelable) e.preventDefault();
@@ -499,17 +549,19 @@
       return;
     }
     // ---- trackpad
+    var gt = gameTouches(e);
     if (e.type === 'touchstart') {
       if (tp.id === null) {
         t = e.changedTouches[0]; tp.id = t.identifier; tp.sx = tp.lx = t.clientX; tp.sy = tp.ly = t.clientY;
         tp.st = now; tp.moved = false; tp.two = false; tp.twoMoved = false; tp.drag = false;
-        if (now - tp.lastTapEnd < 280) { tp.drag = true; mDown(1); }
+        // tap-then-hold drag (only when no L/R button is already held)
+        if (!btnHold && now - tp.lastTapEnd < 280) { tp.drag = true; mDown(1); }
       }
-      if (e.touches.length >= 2) tp.two = true;
+      if (gt.length >= 2) tp.two = true;
     } else if (e.type === 'touchmove') {
       t = getTouch(e, tp.id);
       if (!t) return;
-      if (e.touches.length >= 2) {
+      if (gt.length >= 2) {
         var sdx = t.clientX - tp.lx;
         var sdy = t.clientY - tp.ly;
         if (Math.abs(t.clientX - tp.sx) + Math.abs(t.clientY - tp.sy) > 14) tp.twoMoved = true;
@@ -520,15 +572,19 @@
       moveTo(cur.x + (t.clientX - tp.lx) * S.sens, cur.y + (t.clientY - tp.ly) * S.sens);
       tp.lx = t.clientX; tp.ly = t.clientY;
       if (Math.abs(t.clientX - tp.sx) + Math.abs(t.clientY - tp.sy) > 8) tp.moved = true;
-      mDrag();
+      mDrag();   // sends a MOVE with the button held while L/R (or tap-drag) is down
     } else { // touchend / touchcancel
-      if (tp.id !== null && getTouch(e, tp.id)) { /* primary finger lifted */ }
-      if (e.touches.length === 0) {
-        var dt = now - tp.st;
-        if (tp.drag) { mUp(); tp.drag = false; }
-        else if (e.type === 'touchend' && tp.two && !tp.twoMoved && dt < 320) { mHover(); mClick(2); }
-        else if (e.type === 'touchend' && !tp.two && !tp.moved && dt < 260) { mHover(); mClick(1); tp.lastTapEnd = now; }
+      if (gt.length === 0) {
+        if (tp.id !== null) {
+          var dt = now - tp.st;
+          if (tp.drag) { mUp(); tp.drag = false; }
+          else if (!btnHold && e.type === 'touchend' && tp.two && !tp.twoMoved && dt < 320) { mHover(); mClick(2); }
+          else if (!btnHold && e.type === 'touchend' && !tp.two && !tp.moved && dt < 260) { mHover(); mClick(1); tp.lastTapEnd = now; }
+        }
         tp.id = null; tp.two = false; tp.twoMoved = false;
+      } else if (getTouch(e, tp.id)) {
+        // tracked finger lifted but another game finger remains: keep tracking that one
+        tp.id = gt[0].identifier; tp.lx = gt[0].clientX; tp.ly = gt[0].clientY;
       }
     }
   }
