@@ -185,7 +185,7 @@ Pony Town WebView
 └── town.pony.game v1.3-2387_antisplit.apk
 ```
 
-The tracked `decoded/` tree is the source used for rebuilding the patched APK.
+The tracked `decoded/` tree is a **patch overlay**, not a complete Apktool project. CI first decodes the original APK into a temporary full project, then copies the tracked files from `decoded/` over that project before rebuilding.
 
 ## Build
 
@@ -202,13 +202,22 @@ From the repository root:
 curl -fsSL -o apktool.jar \
   https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
 
-java -jar apktool.jar b decoded \
+rm -rf build
+mkdir -p build
+
+java -jar apktool.jar d -f \
+  "town.pony.game v1.3-2387_antisplit.apk" \
+  -o build/decoded
+
+cp -a decoded/. build/decoded/
+
+java -jar apktool.jar b build/decoded \
   -o build/ponytown-patched-unsigned.apk
 ```
 
 The output is intentionally **unsigned**.
 
-The build does not require a full Android SDK; Apktool handles the APK rebuild using its bundled tooling.
+This mirrors the GitHub Actions build: decode the tracked original APK first, overlay the repository's patch files, then rebuild the resulting Apktool project.
 
 ### GitHub Actions
 
@@ -225,11 +234,12 @@ Build steps:
 1. Check out the repository
 2. Install JDK 17
 3. Download Apktool 2.10.0
-4. Validate the decoded project
-5. Rebuild the unsigned APK
-6. Test the APK archive with `unzip -t`
-7. Generate a SHA-256 checksum
-8. Upload the APK and checksum as workflow artifacts
+4. Decode the tracked original APK into a temporary full project
+5. Overlay the tracked files under `decoded/`
+6. Rebuild the patched unsigned APK
+7. Test the APK archive with `unzip -t`
+8. Generate a SHA-256 checksum
+9. Upload the APK, checksum, and build log as workflow artifacts
 
 The workflow does **not** sign the APK.
 

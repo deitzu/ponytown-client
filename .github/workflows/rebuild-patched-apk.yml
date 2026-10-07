@@ -9,9 +9,10 @@ on:
       - '.github/workflows/rebuild-patched-apk.yml'
   push:
     branches:
-      - 'fix/native-mouse-click-scroll'
+      - 'fix/**'
     paths:
       - 'decoded/**'
+      - 'town.pony.game v1.3-2387_antisplit.apk'
       - '.github/workflows/rebuild-patched-apk.yml'
 
 permissions:
@@ -22,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -33,27 +34,60 @@ jobs:
       - name: Download Apktool 2.10.0
         shell: bash
         run: |
+          set -euo pipefail
           curl -fsSL -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
+          test -s apktool.jar
+          java -version
+          jar tf apktool.jar >/dev/null
 
-      - name: Rebuild unsigned APK
+      - name: Decode original APK
         shell: bash
         run: |
           set -euo pipefail
-          test -f decoded/apktool.yml
-          test -f decoded/AndroidManifest.xml
           rm -rf build
           mkdir -p build
-          java -jar apktool.jar b decoded -o build/ponytown-patched-unsigned.apk
+          java -jar apktool.jar d -f \
+            'town.pony.game v1.3-2387_antisplit.apk' \
+            -o build/decoded 2>&1 | tee build/apktool-decode.log
+          test -f build/decoded/apktool.yml
+          test -f build/decoded/AndroidManifest.xml
+
+      - name: Overlay tracked patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f decoded/AndroidManifest.xml
+          cp -a decoded/. build/decoded/
+          test -f build/decoded/smali/town/pony/game/mod/PtModBridge.smali
+          test -f build/decoded/smali/town/pony/game/mod/PtInput.smali
+          test -f build/decoded/assets/ptmod/ui.js
+
+      - name: Rebuild unsigned APK
+        id: build_apk
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          java -jar apktool.jar b build/decoded \
+            -o build/ponytown-patched-unsigned.apk 2>&1 | tee build/apktool-build.log
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
           test -s build/ponytown-patched-unsigned.apk
           unzip -t build/ponytown-patched-unsigned.apk >/dev/null
           sha256sum build/ponytown-patched-unsigned.apk | tee build/SHA256SUMS.txt
 
-      - name: Upload patched APK
+      - name: Upload build artifacts and diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ponytown-patched-unsigned
           path: |
             build/ponytown-patched-unsigned.apk
             build/SHA256SUMS.txt
-          if-no-files-found: error
+            build/apktool-decode.log
+            build/apktool-build.log
+          if-no-files-found: warn
           retention-days: 14
