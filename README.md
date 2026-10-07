@@ -1,104 +1,158 @@
-# Pony Town Client — Patched Android Build
+# Pony Town Client — Android Patch
 
-A modified, research-oriented build of the Pony Town Android client with an injected local mod layer, lifecycle/keep-alive changes, script management, virtual mouse/keyboard input, and an automated APK rebuild workflow.
+> Unofficial, experimental Android client patch for Pony Town focused on JavaScript mod injection, persistent background behavior, and desktop-style input controls.
 
-> **Status:** Experimental / device testing required  
-> **Target package:** `town.pony.game`  
-> **Current client build:** `1.3-2387` (versionCode `2387`)
+**Target package:** `town.pony.game`  
+**Client build:** `1.3-2387` · versionCode `2387`  
+**Build system:** Apktool `2.10.0` + JDK `17`  
+**APK output:** unsigned
 
-## What this project is
+## Overview
 
-This repository contains a patched/decompiled Pony Town Android client. The original application's WebView and native Android code are kept as the base; modifications are layered around them rather than replacing the client with a new implementation.
+This repository contains a patched/decompiled Pony Town Android client.
 
-The main goals are:
+The original APK is used as the base. Changes are kept as a small native/mod layer around the existing application instead of rewriting the client from scratch.
 
-- keep the WebView active when the app is backgrounded
-- inject user-provided JavaScript without editing the game's web application
-- provide an in-app script manager
-- expose mouse and keyboard-like controls on Android
-- support native-style mouse hover, click, drag, and scroll events
-- rebuild the patched APK reproducibly with GitHub Actions
+The project currently focuses on four areas:
 
-This is primarily a personal modding/research project. It is **not** an official Pony Town client.
+| Area | Purpose |
+| --- | --- |
+| JavaScript injection | Load and manage user scripts on `pony.town` pages |
+| Background keep-alive | Keep the WebView process active through a foreground service |
+| Virtual input | Provide mouse and keyboard-style controls on Android |
+| Reproducible rebuilds | Rebuild the patched APK automatically with GitHub Actions |
+
+This is a personal modding/research project and is **not an official Pony Town client**.
 
 ## Features
 
-### JavaScript mod layer
+### Script manager
 
-The mod layer is injected through `JsInjector` and is restricted to Pony Town hosts.
+The injected mod UI includes a built-in **Scripts** panel.
 
-The current implementation provides:
+- Load `.js` files through the Android file picker
+- Create and edit scripts
+- Run scripts manually
+- Enable/disable scripts
+- Remove scripts
+- Choose execution timing: `start`, `ready`, or `load`
+- Persist scripts in the Pony Town origin's `localStorage`
+- Keep compatibility with the legacy `custom.js` drop-in file
 
-- external/internal `custom.js` loading
-- a persistent script picker
-- script creation, editing, running, enabling/disabling, and removal
-- configurable execution timing: `start`, `ready`, or `load`
-- per-page injection guards to avoid duplicate execution
-- a token-gated `PtModBridge` between page JavaScript and Android code
-- defensive error handling around injection and bridge calls
+The native bridge is token-gated and the injector only accepts Pony Town hosts:
 
-Scripts can use the bridge-backed mouse/keyboard APIs exposed by the mod UI.
+`pony.town`  
+`*.pony.town`
+
+Lookalike hosts such as `pony.town.evil-example.com` are rejected.
 
 ### Virtual mouse
 
-The **Mouse** tab provides two control modes:
+The **Mouse** panel provides two control modes.
 
-**Touch**
-- move the pointer with a finger
-- press/release for left-click
-- drag while holding
+**Touch mode**
 
-**Trackpad**
-- relative pointer movement
-- tap for left-click
-- tap-and-hold for drag
-- two-finger tap for right-click
-- two-finger scrolling
-- on-screen left/right/scroll buttons
+- Finger movement controls the pointer
+- Press/release produces left-click
+- Holding while moving supports drag
 
-The native input path uses Android `MotionEvent` delivery through `dispatchGenericMotionEvent()` for mouse-style events.
+**Trackpad mode**
 
-The implementation distinguishes:
+- Relative pointer movement
+- Tap for left-click
+- Tap-and-hold for drag
+- Two-finger tap for right-click
+- Two-finger scrolling
+- On-screen left/right/scroll controls
 
-- hover: `ACTION_HOVER_MOVE`
-- movement/drag: `ACTION_MOVE` with mouse source/button state
-- button press: `ACTION_BUTTON_PRESS`
-- button release: `ACTION_BUTTON_RELEASE`
-- scrolling: `ACTION_SCROLL` with horizontal/vertical scroll axes
+The patched native path uses Android mouse-style `MotionEvent` delivery:
 
-The UI can also report a fine/hover-capable pointer to page code through the relevant media-query checks.
+`ACTION_HOVER_MOVE` → pointer hover  
+`ACTION_MOVE` → movement/drag  
+`ACTION_BUTTON_PRESS` → mouse button press  
+`ACTION_BUTTON_RELEASE` → mouse button release  
+`ACTION_SCROLL` → wheel/trackpad scrolling
+
+Mouse-style events are dispatched through `dispatchGenericMotionEvent()` with `SOURCE_MOUSE`, rather than emulating button presses with ordinary touch down/up events.
 
 ### On-screen keyboard
 
-The **Keys** tab provides configurable on-screen keys, including:
+The **Keys** panel provides configurable on-screen controls for:
 
 - A–Z
 - 0–9
 - Arrow keys
-- Space, Shift, Ctrl, Alt, Tab
-- Esc, Enter, Backspace
+- Space
+- Shift
+- Ctrl
+- Alt
+- Tab
+- Esc
+- Enter
+- Backspace
 
-Built-in presets include:
+Built-in presets:
 
 - WASD
 - WASD + Space/Shift
 - Arrow keys
 
-Key buttons can be added, removed, resized, repositioned, and toggled.
+Keys can be added, removed, resized, repositioned, and toggled.
 
-### Foreground service
+### Background keep-alive
 
-The patched client starts a foreground service to keep the app process active while backgrounded.
+The patched client starts a foreground service to reduce the chance of the WebView being stopped while the app is backgrounded.
 
 The service:
 
 - uses Android's foreground-service API
-- exposes a persistent low-importance notification
+- uses a low-importance persistent notification
 - returns `START_STICKY`
-- does **not** use a WakeLock
+- does not use a WakeLock
 - is declared with the `dataSync` foreground-service type
 
-The game WebView no longer calls `pauseTimers()` during the patched stop path, because freezing JavaScript timers can break long-lived game sessions while the process is otherwise kept alive.
+The patched WebView stop path also avoids calling `WebView.pauseTimers()`, which would freeze game JavaScript timers while the Android process is otherwise kept alive.
+
+## How it works
+
+The main components are:
+
+```text
+Pony Town WebView
+       │
+       ├── page lifecycle hooks
+       │       └── JsInjector
+       │               └── assets/ptmod/ui.js
+       │
+       └── window.PtModBridge
+                    │
+                    ├── scripts
+                    ├── mouse
+                    └── keyboard
+                         │
+                         └── PtInput
+                              ├── MotionEvent
+                              └── KeyEvent
+                                      │
+                                      ▼
+                               Android WebView
+```
+
+### JavaScript side
+
+`decoded/assets/ptmod/ui.js` provides the visible mod interface and calls the native bridge.
+
+### Injector
+
+`JsInjector.smali` loads the script layer during the WebView page lifecycle and prevents duplicate per-page injection.
+
+### Native bridge
+
+`PtModBridge.smali` exposes a small JavaScript-facing API and verifies the per-process bridge token before accepting calls.
+
+### Native input
+
+`PtInput.smali` constructs Android `MotionEvent`/`KeyEvent` objects and posts them onto the WebView UI thread.
 
 ## Repository layout
 
@@ -109,86 +163,124 @@ The game WebView no longer calls `pauseTimers()` during the patched stop path, b
 │   │   └── ptmod/
 │   │       └── ui.js
 │   ├── smali/
-│   │   └── town/pony/game/mod/
-│   │       ├── JsInjector.smali
-│   │       ├── PtInput.smali
-│   │       └── PtModBridge.smali
+│   │   ├── town/pony/game/mod/
+│   │   │   ├── JsInjector.smali
+│   │   │   ├── PtInput.smali
+│   │   │   └── PtModBridge.smali
+│   │   ├── town/pony/game/service/
+│   │   │   └── PonyTownService.smali
+│   │   └── town/pony/game/ui/webview/
+│   │       └── PonyTownWebViewImpl.smali
 │   ├── smali/y5/
 │   │   └── m.smali
-│   ├── smali/town/pony/game/ui/webview/
-│   │   └── PonyTownWebViewImpl.smali
 │   ├── AndroidManifest.xml
 │   └── apktool.yml
 ├── .github/
 │   └── workflows/
 │       └── rebuild-patched-apk.yml
+├── ANALYSIS.md
 ├── PATCH_REPORT.md
-└── README.md
+├── plan.md
+├── README.md
+└── town.pony.game v1.3-2387_antisplit.apk
 ```
 
-## Building
+The tracked `decoded/` tree is the source used for rebuilding the patched APK.
 
-The repository is designed to rebuild the tracked `decoded/` tree with Apktool.
+## Build
 
-### Local build
+### Requirements
 
-Requirements:
-
-- Java 17
+- JDK 17
 - Apktool 2.10.0
 
-Build:
+### Local rebuild
+
+From the repository root:
 
 ```bash
-java -jar apktool.jar b decoded -o build/ponytown-patched-unsigned.apk
+curl -fsSL -o apktool.jar \
+  https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
+
+java -jar apktool.jar b decoded \
+  -o build/ponytown-patched-unsigned.apk
 ```
 
 The output is intentionally **unsigned**.
 
+The build does not require a full Android SDK; Apktool handles the APK rebuild using its bundled tooling.
+
 ### GitHub Actions
 
-The workflow at:
+The repository includes:
 
 ```text
 .github/workflows/rebuild-patched-apk.yml
 ```
 
-can be triggered manually and is also configured to rebuild when relevant APK/decode/workflow files change.
+The workflow can be started manually and also runs for relevant pull-request/development changes.
 
-The workflow:
+Build steps:
 
-1. checks out the repository
-2. installs JDK 17
-3. downloads Apktool 2.10.0
-4. rebuilds the decoded project
-5. checks that the APK archive is valid
-6. generates a SHA-256 checksum
-7. uploads the unsigned APK and checksum as workflow artifacts
+1. Check out the repository
+2. Install JDK 17
+3. Download Apktool 2.10.0
+4. Validate the decoded project
+5. Rebuild the unsigned APK
+6. Test the APK archive with `unzip -t`
+7. Generate a SHA-256 checksum
+8. Upload the APK and checksum as workflow artifacts
 
-The workflow does not sign the APK and does not require an Android SDK for the Apktool build step.
+The workflow does **not** sign the APK.
+
+## Getting the APK
+
+The intended workflow is:
+
+```text
+GitHub Actions
+      │
+      ▼
+patched unsigned APK
+      │
+      ▼
+sign with your own Android tooling
+      │
+      ▼
+install on test device
+```
+
+After a successful workflow run, download:
+
+```text
+ponytown-patched-unsigned.apk
+SHA256SUMS.txt
+```
+
+Artifact retention is controlled by the workflow file.
 
 ## Signing and installation
 
-The rebuild artifact is unsigned by design.
+The generated APK is unsigned by design.
 
-A typical workflow is:
+A typical installation flow is:
 
-1. obtain `ponytown-patched-unsigned.apk`
-2. sign/rebuild it with your own Android tooling or MT Manager
-3. install the resulting APK on the test device
-4. grant any required Android permissions/settings
+1. Download the unsigned APK artifact.
+2. Sign it with your own key using Android tooling or MT Manager.
+3. Install the signed APK on the test device.
+4. Grant any required Android permissions/settings.
 
-For Android 13+, notification visibility may require allowing notifications for the app.
-
-The package name remains:
+The package remains:
 
 ```text
 town.pony.game
 ```
 
+Because this modifies an existing Android application, installation behavior can depend on the signing key and the existing version installed on the device.
+
 ## Custom JavaScript
 
-The legacy drop-in script path is supported:
+The legacy script path is still supported:
 
 ```text
 /Android/data/town.pony.game/files/scripts/custom.js
@@ -196,83 +288,75 @@ The legacy drop-in script path is supported:
 
 The injector also supports an internal app-files fallback.
 
-The file is read as text and injected through a defensive wrapper so a script exception does not directly crash the host activity.
+The preferred interface is the built-in **Scripts** manager, but the legacy file is useful for quick testing and backwards compatibility.
 
-The preferred long-term interface is the built-in **Scripts** manager rather than relying only on the legacy `custom.js` file.
+Scripts are only injected into accepted Pony Town hosts.
 
-## Current branch focus
+## Testing
 
-The latest development branch is:
+A successful Apktool rebuild is **not** the same as a successful runtime test.
 
-```text
-fix/native-mouse-click-scroll
-```
+Testing is split into three levels.
 
-This branch adds the native mouse button/scroll path on top of the existing mod UI.
-
-Current changes include:
-
-- mouse buttons delivered as generic mouse button events instead of touch down/up events
-- explicit left/right `actionButton` handling
-- native scroll events and horizontal/vertical scroll axes
-- two-finger trackpad scrolling
-- on-screen scroll controls
-- automated unsigned APK rebuild via GitHub Actions
-
-See [PATCH_REPORT.md](PATCH_REPORT.md) for the full implementation history and audit notes.
-
-## Limitations
-
-This project is still experimental.
-
-Known limitations include:
-
-- native input behavior still needs real-device verification
-- multi-key modifier semantics are not fully modeled
-- applications that only consume raw touch input may ignore the virtual mouse
-- page-level overlays may be hidden by game fullscreen elements
-- Android background execution and power-management behavior can still affect long-lived connections
-- the foreground-service behavior is platform-version dependent
-- the APK is unsigned after rebuilding
-
-Do not treat a successful Apktool build as proof that the patched client behaves correctly on a physical device.
-
-## Testing philosophy
-
-Changes should be validated at three different levels:
-
-### Static/build validation
+### 1. Build validation
 
 - Apktool rebuild succeeds
+- Output APK is non-empty
 - APK archive passes integrity checks
-- expected patched classes/resources are present
+- Patched classes/resources are present
 
-### Web/mod-layer validation
+### 2. Mod-layer validation
 
-- `ui.js` parses and loads
-- bridge calls are token-gated
-- script lifecycle does not double-inject
-- UI settings persist as expected
+- `ui.js` loads
+- Bridge calls are token-gated
+- Scripts are not double-injected
+- Script settings persist
+- Mouse/keyboard UI state behaves correctly
 
-### Device/runtime validation
+### 3. Device validation
 
-- app launches normally
-- foreground service starts
-- script loading works
-- mouse hover/click/drag/scroll reaches the WebView
-- keyboard events reach the game
-- backgrounding does not immediately freeze the game
+- App launches normally
+- Foreground service starts
+- Scripts load and execute
+- Mouse hover works
+- Left/right click works
+- Drag works
+- Scroll reaches the WebView
+- Keyboard input reaches the game
+- Backgrounding does not immediately freeze the session
 
-A build passing the first two levels does **not** imply the third level has passed.
+The native input path is still considered **experimental until verified on a physical device**.
 
-## Project notes
+## Known limitations
 
-The detailed technical record lives in [PATCH_REPORT.md](PATCH_REPORT.md). It records modified files, lifecycle hooks, injector behavior, native input routing, build verification, and known unverified areas.
+- Physical-device runtime testing is required for final verification.
+- Multi-key modifier behavior is limited; modifier buttons do not fully emulate browser `shiftKey`/`ctrlKey` state on every synthetic event.
+- Pages that consume only raw touch input may ignore virtual mouse events.
+- The mod UI is rendered inside the page and can be hidden by fullscreen game elements.
+- Android background execution and power-management policies can still affect long-lived connections.
+- Foreground-service behavior varies between Android versions and vendor ROMs.
+- The rebuilt APK is unsigned.
 
-The repository deliberately keeps the mod implementation close to the original client structure so that individual patches can be inspected, tested, and reverted without redesigning the application.
+## Technical documents
+
+Use the other Markdown files for deeper details:
+
+| File | Purpose |
+| --- | --- |
+| [PATCH_REPORT.md](PATCH_REPORT.md) | Patch history, modified files, verification results, and known unverified areas |
+| [ANALYSIS.md](ANALYSIS.md) | Reverse-engineering and implementation analysis |
+| [plan.md](plan.md) | Original patch design and implementation plan |
+
+## Scope and safety
+
+This repository does not intentionally modify Pony Town authentication, payment, billing, or account credentials.
+
+The mod layer is intended for client-side experimentation and input/mod development. It does not replace the game's servers or server-side logic.
+
+Do not place secrets, API keys, signing keys, or other private credentials in this repository or in GitHub Actions logs/artifacts.
 
 ## Disclaimer
 
 This is an unofficial modification of the Pony Town Android client for personal experimentation, interoperability research, and mod development.
 
-Pony Town and related trademarks/assets remain the property of their respective owners. Use and redistribution of the original client or its assets should follow the applicable licenses and terms.
+Pony Town, its name, trademarks, original client, and related assets remain the property of their respective owners. Use, redistribution, and modification of the original software should comply with the applicable terms, licenses, and laws.
