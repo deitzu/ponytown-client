@@ -94,6 +94,7 @@
     # mode 3: mouse button up
     :cond_m3
     const/16 v6, 0xC
+    move v5, v4
     const/4 v4, 0x0
     const/4 v7, 0x1
     invoke-direct {p0, v6, v4, v7, v5}, Ltown/pony/game/mod/PtInput;->dispatchMouse(IIZI)V
@@ -200,24 +201,22 @@
     invoke-static/range {v0 .. v15}, Landroid/view/MotionEvent;->obtain(JJII[Landroid/view/MotionEvent$PointerProperties;[Landroid/view/MotionEvent$PointerCoords;IIFFIIII)Landroid/view/MotionEvent;
     move-result-object v1
 
-    move/from16 v8, p1
     const/16 v4, 0xB
-    if-ne v8, v4, :cond_not_press
+    if-ne p1, v4, :cond_not_press
     move/from16 v4, p4
     invoke-virtual {v1, v4}, Landroid/view/MotionEvent;->setActionButton(I)V
     goto :cond_dispatch
 
     :cond_not_press
     const/16 v4, 0xC
-    if-ne v8, v4, :cond_dispatch
+    if-ne p1, v4, :cond_dispatch
     move/from16 v4, p4
     invoke-virtual {v1, v4}, Landroid/view/MotionEvent;->setActionButton(I)V
 
     :cond_dispatch
     move-object/from16 v2, p0
     iget-object v0, v2, Ltown/pony/game/mod/PtInput;->wv:Landroid/webkit/WebView;
-    move/from16 v6, p3
-    if-eqz v6, :cond_touch
+    if-eqz p3, :cond_touch
     invoke-virtual {v0, v1}, Landroid/view/View;->dispatchGenericMotionEvent(Landroid/view/MotionEvent;)Z
     goto :goto_recycle
     :cond_touch
