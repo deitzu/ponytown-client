@@ -375,6 +375,7 @@
 # ---------------------------------------------------------------------------
 # public void mouseScroll(String token, float dx, float dy)     [JS-visible]
 # Native wheel/trackpad scroll.  dx = horizontal axis, dy = vertical axis.
+.end method
 # ---------------------------------------------------------------------------
 .method public mouseScroll(Ljava/lang/String;FF)V
     .locals 7
@@ -417,8 +418,6 @@
     move-exception v0
 
     goto :goto_ret
-.end method
-
 .end method
 
 # ---------------------------------------------------------------------------
