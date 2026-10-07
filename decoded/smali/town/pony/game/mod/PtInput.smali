@@ -83,11 +83,47 @@
     invoke-direct {p0, v6, v4, v7, v4}, Ltown/pony/game/mod/PtInput;->dispatchMouse(IIZI)V
     goto :goto_ret
 
-    # mode 2: move while held
+    # mode 2: move while held.  buttons = held | (method << 8)
+    #   method 0: HOVER_MOVE (7) carrying the button state, generic/hover path  [default]
+    #   method 1: ACTION_MOVE (2), generic path (legacy; Chromium ignores it)
+    #   method 2: ACTION_MOVE (2), touch path
+    #   method 3: method 0 followed by method 2
     :cond_m2
     const/4 v6, 0x2
     if-ne v1, v6, :cond_m3
+    shr-int/lit8 v5, v4, 0x8
+    and-int/lit16 v4, v4, 0xff
+    if-nez v5, :cond_mv1
+    const/4 v6, 0x7
     const/4 v7, 0x1
+    const/4 v5, 0x0
+    invoke-direct {p0, v6, v4, v7, v5}, Ltown/pony/game/mod/PtInput;->dispatchMouse(IIZI)V
+    goto :goto_ret
+
+    :cond_mv1
+    const/4 v6, 0x1
+    if-ne v5, v6, :cond_mv2
+    const/4 v6, 0x2
+    const/4 v7, 0x1
+    const/4 v5, 0x0
+    invoke-direct {p0, v6, v4, v7, v5}, Ltown/pony/game/mod/PtInput;->dispatchMouse(IIZI)V
+    goto :goto_ret
+
+    :cond_mv2
+    const/4 v6, 0x2
+    if-ne v5, v6, :cond_mv3
+    const/4 v7, 0x0
+    const/4 v5, 0x0
+    invoke-direct {p0, v6, v4, v7, v5}, Ltown/pony/game/mod/PtInput;->dispatchMouse(IIZI)V
+    goto :goto_ret
+
+    :cond_mv3
+    const/4 v6, 0x7
+    const/4 v7, 0x1
+    const/4 v5, 0x0
+    invoke-direct {p0, v6, v4, v7, v5}, Ltown/pony/game/mod/PtInput;->dispatchMouse(IIZI)V
+    const/4 v6, 0x2
+    const/4 v7, 0x0
     invoke-direct {p0, v6, v4, v7, v5}, Ltown/pony/game/mod/PtInput;->dispatchMouse(IIZI)V
     goto :goto_ret
 

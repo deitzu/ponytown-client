@@ -152,3 +152,11 @@ Branch: fix/native-mouse-click-scroll
 - **Fix (`decoded/assets/ptmod/ui.js`):** only fingers that are not on the mod UI count toward the two-finger gesture (`gameTouches`); tracking resets when the last game finger lifts; taps and tap-then-hold are ignored while an L/R button is held (they used to release it); L/R release also handles `lostpointercapture`.
 - **Drag test:** Mouse tab now has a drag-test box (ball follows the cursor while held, plus an HTML5 draggable chip and drop zone) and counters for down / move(held) / up / dragstart / drop, so drag and drop can be verified on a device.
 - Not verified on a device yet.
+
+## Update 2026-10-08 (2) — drag did not move the page/UI
+
+- **Cause:** while a button was held, `PtInput` sent `ACTION_MOVE` through `dispatchGenericMotionEvent`. Android routes generic pointer events to `WebView.onGenericMotionEvent`, which Chromium only uses for button press/release and scroll; mouse moves are only accepted via the hover path (`ACTION_HOVER_MOVE`). So the page never received `mousemove` while a button was down (cursor moved visually, nothing dragged).
+- **Fix:** move-while-held now sends `ACTION_HOVER_MOVE` carrying the pressed-button state (method 0, default).
+- **Mouse tab → "Drag method":** `Hover-move + button` (default), `Move, generic` (old behaviour), `Move, touch path`, `Hover + touch`. Encoded in the high bits of `buttons` for `mouseBtn` phase 2 (no new bridge API).
+- **Tap-then-hold window** widened from 280 ms to 350 ms.
+- Not verified on a device yet.

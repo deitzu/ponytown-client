@@ -59,7 +59,7 @@
 
   // ------------------------------------------------------------------ settings
   var DEF = {
-    mouseOn: false, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, spoofMedia: true,
+    mouseOn: false, dragMethod: 0, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, spoofMedia: true,
     keysOn: false, keyMode: 'native', keyOpacity: 0.55, keys: null,
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
@@ -269,6 +269,7 @@
       ? 'Touch: the cursor jumps to your finger; press = click, drag = drag. Hover happens wherever you touch.'
       : 'Trackpad: swipe anywhere to move the cursor (hover). Tap = left click, tap-then-hold = drag, two-finger tap = right click. L/R buttons below also work.') + '</div>';
     h += '<label class="f"><span>Sensitivity <b id="sensv">' + S.sens + '</b></span><input type="range" min="0.4" max="4" step="0.1" value="' + S.sens + '" data-a="sens"></label>';
+    h += '<label class="f"><span>Drag method (try another if drag fails)</span><select data-a="dragm">' + [[0, 'Hover-move + button (default)'], [1, 'Move, generic'], [2, 'Move, touch path'], [3, 'Hover + touch']].map(function (o) { return '<option value="' + o[0] + '"' + ((S.dragMethod || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>';
     h += '<label class="f"><span>Show cursor</span><input type="checkbox" data-a="cursor"' + (S.cursor ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Cursor size <b id="csv">' + S.cursorSize + '</b></span><input type="range" min="16" max="64" step="2" value="' + S.cursorSize + '" data-a="csize"></label>';
     h += '<label class="f"><span>On-screen L/R buttons (trackpad)</span><input type="checkbox" data-a="lr"' + (S.lr ? ' checked' : '') + '></label>';
@@ -371,6 +372,7 @@
       case 'when': s = findScript(id); if (s) { s.when = t.value; saveScripts(); } break;
       case 'mouseOn': S.mouseOn = t.checked; saveS(); applyMouse(); break;
       case 'mode': S.mouseMode = t.value; saveS(); applyMouse(); render(); break;
+      case 'dragm': S.dragMethod = parseInt(t.value, 10) || 0; saveS(); break;
       case 'cursor': S.cursor = t.checked; saveS(); applyMouse(); break;
       case 'lr': S.lr = t.checked; saveS(); applyMouse(); break;
       case 'scrollOn': S.scrollOn = t.checked; saveS(); applyMouse(); break;
@@ -453,7 +455,7 @@
     if (held) mUp();
     held = b || 1; nHover(cur.x, cur.y); nBtn(1, cur.x, cur.y, held); drawCursor(); publish('down');
   }
-  function mDrag() { if (held) nBtn(2, cur.x, cur.y, held); else mHover(); }
+  function mDrag() { if (held) nBtn(2, cur.x, cur.y, held | ((S.dragMethod || 0) << 8)); else mHover(); }
   function mUp() {
     if (!held) return;
     var released = held;
@@ -555,7 +557,7 @@
         t = e.changedTouches[0]; tp.id = t.identifier; tp.sx = tp.lx = t.clientX; tp.sy = tp.ly = t.clientY;
         tp.st = now; tp.moved = false; tp.two = false; tp.twoMoved = false; tp.drag = false;
         // tap-then-hold drag (only when no L/R button is already held)
-        if (!btnHold && now - tp.lastTapEnd < 280) { tp.drag = true; mDown(1); }
+        if (!btnHold && now - tp.lastTapEnd < 350) { tp.drag = true; mDown(1); }
       }
       if (gt.length >= 2) tp.two = true;
     } else if (e.type === 'touchmove') {
