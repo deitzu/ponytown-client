@@ -160,3 +160,11 @@ Branch: fix/native-mouse-click-scroll
 - **Mouse tab → "Drag method":** `Hover-move + button` (default), `Move, generic` (old behaviour), `Move, touch path`, `Hover + touch`. Encoded in the high bits of `buttons` for `mouseBtn` phase 2 (no new bridge API).
 - **Tap-then-hold window** widened from 280 ms to 350 ms.
 - Not verified on a device yet.
+
+## Update 2026-10-08 (3) — in-game UI ignores drag while custom-script UI reacts
+
+Finding from device testing: after the hover-move fix a draggable bubble created by a custom script drags correctly, but in-game UI does not. So native mouse events reach the page; the game's own UI likely listens to different events (touch/pointer) or filters pointer type. Two tools added to find/work around it without guessing:
+
+- **Debug tab → Event spy:** logs the events the page receives (type, real target element, `isTrusted`, pointer type, buttons; moves only while a button is down). Turn on, close the panel, drag something in the game, reopen the tab.
+- **Mouse tab → "Also emit touch events on press/drag (compat)":** off by default. When on, mouse press/drag/release at the cursor also dispatches script-made `touchstart/touchmove/touchend` on the element under the cursor, for UI that only handles touch. The mod's own touch handler ignores non-trusted events, so there is no feedback loop. Side effect: a click may be seen twice (touch tap + mouse click) by some UI.
+- Not verified on a device yet.
