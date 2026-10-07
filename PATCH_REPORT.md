@@ -168,3 +168,12 @@ Finding from device testing: after the hover-move fix a draggable bubble created
 - **Debug tab → Event spy:** logs the events the page receives (type, real target element, `isTrusted`, pointer type, buttons; moves only while a button is down). Turn on, close the panel, drag something in the game, reopen the tab.
 - **Mouse tab → "Also emit touch events on press/drag (compat)":** off by default. When on, mouse press/drag/release at the cursor also dispatches script-made `touchstart/touchmove/touchend` on the element under the cursor, for UI that only handles touch. The mod's own touch handler ignores non-trusted events, so there is no feedback loop. Side effect: a click may be seen twice (touch tap + mouse click) by some UI.
 - Not verified on a device yet.
+
+## Update 2026-10-08 (4) — in-game UI windows (Angular CDK drag) ignore native mouse drag
+
+Event-spy result from the device: the game canvas reacts to native mouse drag (character moves), the custom-script bubble drags, but game UI windows (`div.cdk-drag-handle`) do not move and the text gets selected instead.
+
+- **Likely cause:** Angular CDK's drag ignores a `mousedown` when `event.buttons === 0 || event.detail === 0` (`isFakeMousedownFromScreenReader`, verified in the CDK source). Native mouse events built from Android `MotionEvent`s can carry `detail=0`, so CDK never starts the drag and the browser starts a text selection instead. Not yet confirmed on device.
+- **Fix (`ui.js`, Mouse tab → "Normalise native mouse events", on by default):** on trusted `mousedown`/`mouseup`/`click` (clicks only when `pointerType==='mouse'`, so keyboard clicks are untouched) a window-capture listener sets `detail=1` on the event instance, and `buttons=<held button>` on `mousedown` if it was 0. While a virtual mouse button is held, `selectstart` is cancelled (inputs/textareas/contenteditable excluded).
+- **Event spy:** now collapses move events into `xN` lines, shows `d=` (`event.detail`) on mouse events, logs `selectstart`, and marks events whose default was prevented (`PREVENTED`), so the first `mousedown` of a drag is always visible.
+- Not verified on a device yet.

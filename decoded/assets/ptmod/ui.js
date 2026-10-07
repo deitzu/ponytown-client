@@ -59,7 +59,7 @@
 
   // ------------------------------------------------------------------ settings
   var DEF = {
-    mouseOn: false, dragMethod: 0, touchCompat: false, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, spoofMedia: true,
+    mouseOn: false, dragMethod: 0, touchCompat: false, fixEvents: true, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, spoofMedia: true,
     keysOn: false, keyMode: 'native', keyOpacity: 0.55, keys: null,
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
@@ -271,6 +271,7 @@
       : 'Trackpad: swipe anywhere to move the cursor (hover). Tap = left click, tap-then-hold = drag, two-finger tap = right click. L/R buttons below also work.') + '</div>';
     h += '<label class="f"><span>Sensitivity <b id="sensv">' + S.sens + '</b></span><input type="range" min="0.4" max="4" step="0.1" value="' + S.sens + '" data-a="sens"></label>';
     h += '<label class="f"><span>Drag method (try another if drag fails)</span><select data-a="dragm">' + [[0, 'Hover-move + button (default)'], [1, 'Move, generic'], [2, 'Move, touch path'], [3, 'Hover + touch']].map(function (o) { return '<option value="' + o[0] + '"' + ((S.dragMethod || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>';
+    h += '<label class="f"><span>Normalise native mouse events (fix detail/buttons, block text selection while dragging)</span><input type="checkbox" data-a="fixev"' + (S.fixEvents ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Also emit touch events on press/drag (compat, off by default)</span><input type="checkbox" data-a="tcompat"' + (S.touchCompat ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Show cursor</span><input type="checkbox" data-a="cursor"' + (S.cursor ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Cursor size <b id="csv">' + S.cursorSize + '</b></span><input type="range" min="16" max="64" step="2" value="' + S.cursorSize + '" data-a="csize"></label>';
@@ -318,7 +319,7 @@
 
   // ------------------------------------------------------------------ event spy (debug)
   var spyOn = false, spyLog = [], spyCnt = {}, spyTimer = 0;
-  var SPY_TYPES = ['mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchend', 'touchcancel', 'dragstart', 'contextmenu', 'wheel', 'mousemove', 'pointermove', 'touchmove'];
+  var SPY_TYPES = ['mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchend', 'touchcancel', 'dragstart', 'contextmenu', 'wheel', 'selectstart', 'mousemove', 'pointermove', 'touchmove'];
   function descNode(n) {
     if (!n || !n.tagName) return String((n && n.nodeName) || n);
     var s = n.tagName.toLowerCase();
@@ -327,20 +328,36 @@
     if (c) s += '.' + c;
     return s;
   }
+  var spyMv = {};   // collapsed move events: line -> {line, n}
+  function spyFlush() {
+    Object.keys(spyMv).forEach(function (k) { spyLog.push({ line: spyMv[k].line, n: spyMv[k].n }); });
+    spyMv = {};
+    while (spyLog.length > 26) spyLog.shift();
+  }
   function spyText() {
     var keys = Object.keys(spyCnt);
     var head = keys.length ? ('counts: ' + keys.map(function (k) { return k + '=' + spyCnt[k]; }).join(' ')) : 'no events logged yet';
-    return head + '\n' + spyLog.map(function (l) { return l.line + (l.n > 1 ? '  x' + l.n : ''); }).join('\n');
+    var rows = spyLog.map(function (l) { return l.line + (l.n > 1 ? '  x' + l.n : ''); });
+    Object.keys(spyMv).forEach(function (k) { rows.push(spyMv[k].line + '  x' + spyMv[k].n); });
+    return head + '\n' + rows.join('\n');
   }
   function spyHandler(e) {
     var p = e.composedPath ? e.composedPath() : [], i;
     for (i = 0; i < p.length; i++) if (p[i] === host) return;
+    var mv = (e.type === 'mousemove' || e.type === 'pointermove' || e.type === 'touchmove');
     if ((e.type === 'mousemove' || e.type === 'pointermove') && !e.buttons) return;
-    var line = e.type + ' ' + descNode(p[0] || e.target) + ' trusted=' + e.isTrusted + (e.pointerType ? ' ' + e.pointerType : '') + (typeof e.buttons === 'number' ? ' b=' + e.buttons : '');
+    var isMouseish = (e.type.indexOf('mouse') === 0 || e.type === 'click' || e.type === 'contextmenu');
+    var line = e.type + ' ' + descNode(p[0] || e.target) + ' trusted=' + e.isTrusted + (e.pointerType ? ' ' + e.pointerType : '') +
+      (typeof e.buttons === 'number' ? ' b=' + e.buttons : '') + (isMouseish && typeof e.detail === 'number' ? ' d=' + e.detail : '');
     spyCnt[e.type] = (spyCnt[e.type] || 0) + 1;
-    var last = spyLog[spyLog.length - 1];
-    if (last && last.line === line) last.n++;
-    else { spyLog.push({ line: line, n: 1 }); if (spyLog.length > 16) spyLog.shift(); }
+    if (mv) {
+      if (spyMv[line]) spyMv[line].n++; else spyMv[line] = { line: line, n: 1 };
+    } else {
+      spyFlush();
+      var entry = { line: line, n: 1 };
+      spyLog.push(entry);
+      if (e.cancelable) setTimeout(function () { if (e.defaultPrevented) entry.line += ' PREVENTED'; }, 0);
+    }
     if (!spyTimer) spyTimer = setTimeout(function () {
       spyTimer = 0;
       var o = panel.querySelector('#spyout');
@@ -396,7 +413,7 @@
       case 'load': pickFile(); break;
       case 'new': editing = { id: null, name: 'new-script.js', code: '// your code\nconsole.log("hello from ptmod");\n' }; render(); break;
       case 'reload': try { location.reload(); } catch (x) { /* ignore */ } break;
-      case 'spyclear': spyLog = []; spyCnt = {}; render(); break;
+      case 'spyclear': spyLog = []; spyCnt = {}; spyMv = {}; render(); break;
       case 'spyrefresh': render(); break;
       case 'run': s = findScript(id); if (s) { runScript(s); toast('Ran ' + s.name); } break;
       case 'view': s = findScript(id); if (s) { editing = { id: s.id, name: s.name, code: s.code }; render(); } break;
@@ -422,6 +439,7 @@
       case 'when': s = findScript(id); if (s) { s.when = t.value; saveScripts(); } break;
       case 'mouseOn': S.mouseOn = t.checked; saveS(); applyMouse(); break;
       case 'mode': S.mouseMode = t.value; saveS(); applyMouse(); render(); break;
+      case 'fixev': S.fixEvents = t.checked; saveS(); break;
       case 'tcompat': S.touchCompat = t.checked; saveS(); break;
       case 'spy': setSpy(t.checked); break;
       case 'dragm': S.dragMethod = parseInt(t.value, 10) || 0; saveS(); break;
@@ -660,6 +678,25 @@
   function onPointerBlock(e) {
     if (S.mouseOn && e.pointerType === 'touch' && !inUi(e)) e.stopImmediatePropagation();
   }
+  // Native Android mouse events can arrive with detail=0 / buttons=0, which UI frameworks (Angular CDK drag)
+  // treat as "fake mousedown from a screen reader" and ignore.  Normalise them on the event instance.
+  function fixNativeMouse(e) {
+    if (!S.mouseOn || !S.fixEvents || !e.isTrusted) return;
+    try {
+      var keyboardClick = (e.type === 'click' && e.pointerType !== 'mouse');
+      if (e.detail === 0 && !keyboardClick) Object.defineProperty(e, 'detail', { value: 1, configurable: true });
+      if (e.type === 'mousedown' && e.buttons === 0) Object.defineProperty(e, 'buttons', { value: held || 1, configurable: true });
+    } catch (x) { /* ignore */ }
+  }
+  ['mousedown', 'mouseup', 'click'].forEach(function (t) { window.addEventListener(t, fixNativeMouse, true); });
+  // No blue text selection while a virtual mouse button is held (inputs/textareas excluded)
+  window.addEventListener('selectstart', function (e) {
+    if (!S.mouseOn || !held || !S.fixEvents) return;
+    var n = e.target;
+    if (n && n.nodeType === 3) n = n.parentElement;
+    if (n && n.closest && n.closest('input,textarea,[contenteditable="true"],[contenteditable=""]')) return;
+    if (e.cancelable) e.preventDefault();
+  }, true);
   ['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(function (t) { window.addEventListener(t, onTouch, { capture: true, passive: false }); });
   ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'].forEach(function (t) { window.addEventListener(t, onPointerBlock, true); });
 
