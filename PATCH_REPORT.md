@@ -84,3 +84,20 @@ No auth, payment, billing, login, or network-protocol code was touched. No WakeL
 2. Rebuild/sign with your own key (the APK is unsigned by design).
 3. Install on a device running Android 8+ (API 26+). Android 13+ devices: allow notifications for Pony Town after first launch.
 4. Optional custom JS: create `/Android/data/town.pony.game/files/scripts/custom.js` (external) or the internal equivalent, and it will be injected on `pony.town` pages.
+
+---
+
+## Update 2026-10-07 — injector fix + background disconnect fix
+
+Found by reading the smali (not yet verified on a device). Rebuilt with apktool 2.10.0: build OK, round-trip decode OK.
+
+### Injector never loaded — causes and fixes
+1. `JsInjector.isEmpty` / `PtModBridge.isEmptyText` were inverted (non-empty text returned `true`). Result: an external `custom.js` was treated as empty and skipped, and a missing script hit `String.concat(null)`. **Fixed** (`if-nez` → `if-eqz`), callers flipped accordingly.
+2. `PtModBridge.ensureBridge` had an inverted `instance-of Activity` check, so `sActivity` was never set and `pickScript()` did nothing. **Fixed**, and it now unwraps `ContextWrapper` chains to find the Activity.
+3. `addJavascriptInterface` only becomes visible to JS on the *next* page load, but the bridge was registered in `onPageFinished`. **Fixed**: the bridge is now also registered right after the game's own `"Android"` interface in the `PonyTownWebViewImpl` constructor (new tracked file `ui/webview/PonyTownWebViewImpl.smali`). `PtModBridge` stays gated: scripts only run on `pony.town` / `*.pony.town`.
+4. Workaround: a script picked with **LOAD SCRIPT** is now saved to internal `files/scripts/custom.js` and auto-loads on every launch (picking an empty file clears it). The small LOAD SCRIPT button is always shown (55% opacity). An external `custom.js` still takes priority over the saved one.
+
+### Kicked from server after long background — cause and fix
+`PonyTownWebViewImpl.e()` (the lifecycle `onStop`) calls `WebView.pauseTimers()`. That freezes the game's JS timers while the foreground service keeps the process alive, so heartbeats stop and the server drops the connection. **Fixed**: the `pauseTimers()` call is removed. Volume is still muted on stop. Not changed: Doze / Wi-Fi power-save can still drop sockets on some devices; if kicks continue, a user-enabled WifiLock is the next option.
+
+Modified in this update: `JsInjector.smali`, `PtModBridge.smali`, `PonyTownWebViewImpl.smali` (new).

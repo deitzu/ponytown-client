@@ -94,10 +94,25 @@
 
     move-result-object v1
 
+    # unwrap ContextWrapper chain until the hosting Activity is found
+    :goto_unwrap
     instance-of v5, v1, Landroid/app/Activity;
 
-    if-nez v5, :goto_ctx_done
+    if-nez v5, :goto_is_act
 
+    instance-of v5, v1, Landroid/content/ContextWrapper;
+
+    if-eqz v5, :goto_ctx_done
+
+    check-cast v1, Landroid/content/ContextWrapper;
+
+    invoke-virtual {v1}, Landroid/content/ContextWrapper;->getBaseContext()Landroid/content/Context;
+
+    move-result-object v1
+
+    goto :goto_unwrap
+
+    :goto_is_act
     check-cast v1, Landroid/app/Activity;
 
     sput-object v1, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
@@ -274,13 +289,71 @@
 
     move-result-object v3
 
+    if-eqz v3, :goto_ret
+
+    # persist so it auto-loads next launch (picking an empty file clears it)
+    invoke-static {v2, v3}, Ltown/pony/game/mod/PtModBridge;->saveScript(Landroid/content/Context;Ljava/lang/String;)V
+
     invoke-static {v3}, Ltown/pony/game/mod/PtModBridge;->isEmptyText(Ljava/lang/String;)Z
 
     move-result v0
 
-    if-eqz v0, :goto_ret
+    if-nez v0, :goto_ret
 
     invoke-static {v3}, Ltown/pony/game/mod/PtModBridge;->injectIntoWebView(Ljava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+# private static void saveScript(Context, String)
+# Writes the picked script to <internal files>/scripts/custom.js so JsInjector
+# loads it automatically on every launch (no /Android/data access needed).
+# ---------------------------------------------------------------------------
+.method private static saveScript(Landroid/content/Context;Ljava/lang/String;)V
+    .locals 5
+
+    :try_start_0
+    invoke-virtual {p0}, Landroid/content/Context;->getFilesDir()Ljava/io/File;
+
+    move-result-object v0
+
+    new-instance v1, Ljava/io/File;
+
+    const-string v2, "scripts"
+
+    invoke-direct {v1, v0, v2}, Ljava/io/File;-><init>(Ljava/io/File;Ljava/lang/String;)V
+
+    invoke-virtual {v1}, Ljava/io/File;->mkdirs()Z
+
+    new-instance v0, Ljava/io/File;
+
+    const-string v2, "custom.js"
+
+    invoke-direct {v0, v1, v2}, Ljava/io/File;-><init>(Ljava/io/File;Ljava/lang/String;)V
+
+    new-instance v3, Ljava/io/FileOutputStream;
+
+    invoke-direct {v3, v0}, Ljava/io/FileOutputStream;-><init>(Ljava/io/File;)V
+
+    const-string v4, "UTF-8"
+
+    invoke-virtual {p1, v4}, Ljava/lang/String;->getBytes(Ljava/lang/String;)[B
+
+    move-result-object v4
+
+    invoke-virtual {v3, v4}, Ljava/io/OutputStream;->write([B)V
+
+    invoke-virtual {v3}, Ljava/io/OutputStream;->close()V
 
     :try_end_0
     .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
@@ -378,7 +451,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_true
+    if-eqz v0, :cond_true
 
     const/4 v0, 0x0
 

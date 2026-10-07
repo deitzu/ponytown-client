@@ -130,7 +130,7 @@
     move-result v0
 
     # no custom.js -> expose the "LOAD SCRIPT" picker button instead (SAF)
-    if-eqz v0, :goto_bootstrap
+    if-nez v0, :goto_ret
 
     const-string v0, "(function(){ var _n=0; function _r(){ if (window.__ptModInjected) return; if (document && document.documentElement) { window.__ptModInjected=1; (function(){ try { "
 
@@ -143,13 +143,6 @@
     invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v0
-
-    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
-
-    goto :goto_ret
-
-    :goto_bootstrap
-    const-string v0, "(function(){ if(window.__ptBtn) return; var n=0; var b=document.createElement('button'); b.id='ptLoadBtn'; b.textContent='LOAD SCRIPT'; b.style.cssText='position:fixed;top:8px;left:8px;z-index:99999;padding:6px 12px;background:#c33;color:#fff;border:0;border-radius:4px;font:bold 13px sans-serif'; b.onclick=function(){ if(window.PtModBridge) PtModBridge.pickScript(); }; var a=function(){ if(document.documentElement && window.PtModBridge){ if(window.__ptBtn) return; document.documentElement.appendChild(b); window.__ptBtn=1; return; } if(++n<25) setTimeout(a,200); }; a(); })();"
 
     invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
 
@@ -192,7 +185,7 @@
     move-result v0
 
     # no custom.js -> expose the "LOAD SCRIPT" picker button instead (SAF)
-    if-eqz v0, :goto_bootstrap
+    if-nez v0, :goto_bootstrap
 
     const-string v0, "(function(){ try { "
 
@@ -208,10 +201,8 @@
 
     invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
 
-    goto :goto_ret
-
     :goto_bootstrap
-    const-string v0, "(function(){ if(window.__ptBtn) return; var n=0; var b=document.createElement('button'); b.id='ptLoadBtn'; b.textContent='LOAD SCRIPT'; b.style.cssText='position:fixed;top:8px;left:8px;z-index:99999;padding:6px 12px;background:#c33;color:#fff;border:0;border-radius:4px;font:bold 13px sans-serif'; b.onclick=function(){ if(window.PtModBridge) PtModBridge.pickScript(); }; var a=function(){ if(document.documentElement && window.PtModBridge){ if(window.__ptBtn) return; document.documentElement.appendChild(b); window.__ptBtn=1; return; } if(++n<25) setTimeout(a,200); }; a(); })();"
+    const-string v0, "(function(){ if(window.__ptBtn) return; var n=0; var b=document.createElement('button'); b.id='ptLoadBtn'; b.textContent='LOAD SCRIPT'; b.style.cssText='position:fixed;top:8px;left:8px;z-index:99999;padding:3px 8px;opacity:.55;background:#c33;color:#fff;border:0;border-radius:4px;font:bold 11px sans-serif'; b.onclick=function(){ if(window.PtModBridge) PtModBridge.pickScript(); }; var a=function(){ if(document.documentElement && window.PtModBridge){ if(window.__ptBtn) return; document.documentElement.appendChild(b); window.__ptBtn=1; return; } if(++n<25) setTimeout(a,200); }; a(); })();"
 
     invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
 
@@ -255,7 +246,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_true
+    if-eqz v0, :cond_true
 
     const/4 v0, 0x0
 
