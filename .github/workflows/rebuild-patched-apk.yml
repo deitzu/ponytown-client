@@ -1,0 +1,59 @@
+name: Rebuild patched Pony Town APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'decoded/**'
+      - 'town.pony.game v1.3-2387_antisplit.apk'
+      - '.github/workflows/rebuild-patched-apk.yml'
+  push:
+    branches:
+      - 'fix/native-mouse-click-scroll'
+    paths:
+      - 'decoded/**'
+      - '.github/workflows/rebuild-patched-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download Apktool 2.10.0
+        shell: bash
+        run: |
+          curl -fsSL -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
+
+      - name: Rebuild unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f decoded/apktool.yml
+          test -f decoded/AndroidManifest.xml
+          rm -rf build
+          mkdir -p build
+          java -jar apktool.jar b decoded -o build/ponytown-patched-unsigned.apk
+          test -s build/ponytown-patched-unsigned.apk
+          unzip -t build/ponytown-patched-unsigned.apk >/dev/null
+          sha256sum build/ponytown-patched-unsigned.apk | tee build/SHA256SUMS.txt
+
+      - name: Upload patched APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ponytown-patched-unsigned
+          path: |
+            build/ponytown-patched-unsigned.apk
+            build/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

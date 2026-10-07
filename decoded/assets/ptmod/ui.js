@@ -59,7 +59,7 @@
 
   // ------------------------------------------------------------------ settings
   var DEF = {
-    mouseOn: false, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, spoofMedia: true,
+    mouseOn: false, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, spoofMedia: true,
     keysOn: false, keyMode: 'native', keyOpacity: 0.55, keys: null,
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
@@ -76,13 +76,14 @@
   function dpr() { return window.devicePixelRatio || 1; }
   function nHover(x, y) { var b = B(); if (b && b.mouseMove) { try { b.mouseMove(T, x * dpr(), y * dpr()); } catch (e) { /* ignore */ } } }
   function nBtn(phase, x, y, buttons) { var b = B(); if (b && b.mouseBtn) { try { b.mouseBtn(T, phase, x * dpr(), y * dpr(), buttons); } catch (e) { /* ignore */ } } }
+  function nScroll(dx, dy) { var b = B(); if (b && b.mouseScroll) { try { b.mouseScroll(T, dx, dy); } catch (e) { /* ignore */ } } }
   function nKey(code, down) { var b = B(); if (b && b.key) { try { b.key(T, code, !!down); } catch (e) { /* ignore */ } } }
   function nExec(code) {
     var b = B();
     if (b && b.exec) { try { b.exec(T, code); return true; } catch (e) { /* fall through */ } }
     try { (0, eval)(code); return true; } catch (e2) { console.error('[ptmod] exec failed', e2); return false; }
   }
-  function bridgeOk() { var b = B(); return !!(b && b.mouseMove && b.mouseBtn && b.key && b.exec && b.pickScript); }
+  function bridgeOk() { var b = B(); return !!(b && b.mouseMove && b.mouseBtn && b.mouseScroll && b.key && b.exec && b.pickScript); }
 
   // ------------------------------------------------------------------ script manager
   function safeName(n) { return String(n).replace(/[^\w.\-]+/g, '_').slice(0, 60) || 'script'; }
@@ -266,6 +267,7 @@
     h += '<label class="f"><span>Show cursor</span><input type="checkbox" data-a="cursor"' + (S.cursor ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Cursor size <b id="csv">' + S.cursorSize + '</b></span><input type="range" min="16" max="64" step="2" value="' + S.cursorSize + '" data-a="csize"></label>';
     h += '<label class="f"><span>On-screen L/R buttons (trackpad)</span><input type="checkbox" data-a="lr"' + (S.lr ? ' checked' : '') + '></label>';
+    h += '<label class="f"><span>Two-finger scroll + ▲▼ buttons</span><input type="checkbox" data-a="scrollOn"' + (S.scrollOn ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Report hover/fine pointer to page (matchMedia)</span><input type="checkbox" data-a="spoof"' + (S.spoofMedia ? ' checked' : '') + '></label>';
     h += '<div class="hover" id="ht">Hover test area<small id="hti">move the cursor here (trackpad mode: swipe outside the panel)</small></div>';
     return h;
@@ -344,6 +346,7 @@
       case 'mode': S.mouseMode = t.value; saveS(); applyMouse(); render(); break;
       case 'cursor': S.cursor = t.checked; saveS(); applyMouse(); break;
       case 'lr': S.lr = t.checked; saveS(); applyMouse(); break;
+      case 'scrollOn': S.scrollOn = t.checked; saveS(); applyMouse(); break;
       case 'spoof': S.spoofMedia = t.checked; saveS(); fireMediaChange(); break;
       case 'keysOn': S.keysOn = t.checked; saveS(); buildKeys(); break;
       case 'keyMode': S.keyMode = t.value; saveS(); break;
@@ -426,7 +429,14 @@
   function mDrag() { if (held) nBtn(2, cur.x, cur.y, held); else mHover(); }
   function mUp() {
     if (!held) return;
-    held = 0; nBtn(3, cur.x, cur.y, 0); drawCursor(); publish('up'); mHover();
+    var released = held;
+    held = 0; nBtn(3, cur.x, cur.y, released); drawCursor(); publish('up'); mHover();
+  }
+  function mScroll(dx, dy) {
+    if (!S.scrollOn) return;
+    if (!dx && !dy) return;
+    nScroll(dx, dy);
+    publish('scroll');
   }
   function mClick(b) { mDown(b); setTimeout(mUp, 45); }
 
@@ -440,6 +450,27 @@
       return b;
     }
     lrBar.appendChild(mk('L', 1)); lrBar.appendChild(mk('R', 2));
+    function mkScroll(label, dy) {
+      var b = el('button', 'lrb', label);
+      var timer = 0;
+      function stop() {
+        if (timer) { clearInterval(timer); timer = 0; }
+        b.className = 'lrb';
+      }
+      b.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        try { b.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+        b.className = 'lrb down';
+        mScroll(0, dy);
+        timer = setInterval(function () { mScroll(0, dy); }, 90);
+      });
+      b.addEventListener('pointerup', stop);
+      b.addEventListener('pointercancel', stop);
+      b.addEventListener('lostpointercapture', stop);
+      lrBar.appendChild(b);
+    }
+    mkScroll('▲', 1.0);
+    mkScroll('▼', -1.0);
   })();
 
   function inUi(e) {
@@ -478,7 +509,14 @@
     } else if (e.type === 'touchmove') {
       t = getTouch(e, tp.id);
       if (!t) return;
-      if (e.touches.length >= 2) { if (Math.abs(t.clientX - tp.sx) + Math.abs(t.clientY - tp.sy) > 14) tp.twoMoved = true; tp.lx = t.clientX; tp.ly = t.clientY; return; }
+      if (e.touches.length >= 2) {
+        var sdx = t.clientX - tp.lx;
+        var sdy = t.clientY - tp.ly;
+        if (Math.abs(t.clientX - tp.sx) + Math.abs(t.clientY - tp.sy) > 14) tp.twoMoved = true;
+        tp.lx = t.clientX; tp.ly = t.clientY;
+        if (Math.abs(sdx) + Math.abs(sdy) > 0) mScroll(-sdx * S.sens * 0.08, -sdy * S.sens * 0.08);
+        return;
+      }
       moveTo(cur.x + (t.clientX - tp.lx) * S.sens, cur.y + (t.clientY - tp.ly) * S.sens);
       tp.lx = t.clientX; tp.ly = t.clientY;
       if (Math.abs(t.clientX - tp.sx) + Math.abs(t.clientY - tp.sy) > 8) tp.moved = true;
@@ -503,7 +541,7 @@
   function applyMouse() {
     if (!S.mouseOn && held) mUp();
     tp.id = null;
-    lrBar.style.display = (S.mouseOn && S.mouseMode === 'trackpad' && S.lr) ? 'flex' : 'none';
+    lrBar.style.display = (S.mouseOn && S.mouseMode === 'trackpad' && (S.lr || S.scrollOn)) ? 'flex' : 'none';
     clampCur(); drawCursor(); publish('mode');
     if (S.mouseOn) mHover();
     fireMediaChange();

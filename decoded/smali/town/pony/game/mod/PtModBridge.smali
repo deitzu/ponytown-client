@@ -372,6 +372,53 @@
     move-exception v0
 
     goto :goto_ret
+# ---------------------------------------------------------------------------
+# public void mouseScroll(String token, float dx, float dy)     [JS-visible]
+# Native wheel/trackpad scroll.  dx = horizontal axis, dy = vertical axis.
+# ---------------------------------------------------------------------------
+.method public mouseScroll(Ljava/lang/String;FF)V
+    .locals 7
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
+
+    if-eqz v0, :goto_ret
+
+    const/4 v1, 0x7
+
+    move v2, p2
+
+    move v3, p3
+
+    const/4 v4, 0x0
+
+    const/4 v5, 0x0
+
+    const/4 v6, 0x0
+
+    invoke-static/range {v0 .. v6}, Ltown/pony/game/mod/PtInput;->post(Landroid/webkit/WebView;IFFIILjava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
 .end method
 
 # ---------------------------------------------------------------------------

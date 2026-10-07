@@ -133,3 +133,15 @@ On-screen key buttons (A–Z, 0–9, arrows, Space, Shift, Ctrl, Alt, Tab, Esc, 
 - The panel/cursor render inside the page; if the game opens a fullscreen element they may be hidden.
 
 Files: `PtInput.smali` (new), `PtModBridge.smali`, `JsInjector.smali`, `y5/m.smali`, `PonyTownWebViewImpl.smali`, `assets/ptmod/ui.js` (new).
+
+
+## Update 2026-10-07 (3) — native mouse click + scroll branch
+
+Branch: fix/native-mouse-click-scroll
+
+- Mouse button events now use ACTION_BUTTON_PRESS/ACTION_BUTTON_RELEASE through dispatchGenericMotionEvent instead of ACTION_DOWN/ACTION_UP through dispatchTouchEvent.
+- Left/right button identity is carried through MotionEvent.setActionButton(); drag movement remains generic SOURCE_MOUSE with the held button state.
+- Added native ACTION_SCROLL using AXIS_HSCROLL and AXIS_VSCROLL.
+- Trackpad mode now supports two-finger scrolling and on-screen up/down scroll buttons.
+- Added .github/workflows/rebuild-patched-apk.yml to rebuild the tracked decoded APK with Apktool 2.10.0 and upload the unsigned APK artifact.
+- Runtime behavior is not device-verified here.
