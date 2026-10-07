@@ -200,22 +200,24 @@
     invoke-static/range {v0 .. v15}, Landroid/view/MotionEvent;->obtain(JJII[Landroid/view/MotionEvent$PointerProperties;[Landroid/view/MotionEvent$PointerCoords;IIFFIIII)Landroid/view/MotionEvent;
     move-result-object v1
 
+    move/from16 v8, p1
     const/16 v4, 0xB
-    if-ne p1, v4, :cond_not_press
+    if-ne v8, v4, :cond_not_press
     move/from16 v4, p4
     invoke-virtual {v1, v4}, Landroid/view/MotionEvent;->setActionButton(I)V
     goto :cond_dispatch
 
     :cond_not_press
     const/16 v4, 0xC
-    if-ne p1, v4, :cond_dispatch
+    if-ne v8, v4, :cond_dispatch
     move/from16 v4, p4
     invoke-virtual {v1, v4}, Landroid/view/MotionEvent;->setActionButton(I)V
 
     :cond_dispatch
     move-object/from16 v2, p0
     iget-object v0, v2, Ltown/pony/game/mod/PtInput;->wv:Landroid/webkit/WebView;
-    if-eqz p3, :cond_touch
+    move/from16 v6, p3
+    if-eqz v6, :cond_touch
     invoke-virtual {v0, v1}, Landroid/view/View;->dispatchGenericMotionEvent(Landroid/view/MotionEvent;)Z
     goto :goto_recycle
     :cond_touch
