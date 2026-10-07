@@ -1,29 +1,21 @@
 #
-# PonyTown Mod (Stage 3): custom JavaScript injector for the game WebView.
+# PonyTown Mod: injector for the game WebView.
 #
-# - Hostname gate: inject ONLY when the page host is exactly "pony.town"
-#   or a subdomain matching "*.pony.town" (real host parsing via
-#   android.net.Uri.getHost(); never url.contains()).
-# - Script source: <external files>/scripts/custom.js first
-#   (= /Android/data/town.pony.game/files/scripts/custom.js via
-#   Context.getExternalFilesDir("scripts") -- no storage permission needed),
-#   falls back to <internal files>/scripts/custom.js. The scripts
-#   directories are created if missing to make drop-in easy.
-# - Doc-start path (onPageStarted): injects the §7 try/catch wrapper inside a
-#   one-shot DOM-ready guard with a bounded in-JS retry so the first attempt
-#   being "too early" recovers automatically, with no double execution from
-#   this path (per-page flag).
-# - Page-finished path (onPageFinished): injects the plain §7 wrapper.
-# - Never throws: every entry point is fully defensive; a missing/empty file
-#   or a non-pony.town URL is a silent no-op.
-# - When custom.js is absent, both paths evaluate a tiny built-in bootstrap
-#   that renders a "LOAD SCRIPT" button; the button calls PtModBridge
-#   (town.pony.game.mod.PtModBridge) which opens the system SAF file picker.
-#   The bootstrap only patches the DOM -- the picked script is executed
-#   later, and only if the page still passes the same pony.town gate.
+# What gets injected (pony.town / *.pony.town ONLY -- real host parsing via
+# android.net.Uri.getHost(); never url.contains()):
+#   1. The built-in mod UI (assets/ptmod/ui.js): script manager, virtual
+#      mouse, on-screen keys.  It is wrapped as
+#        (function(__PT_TOKEN){ <ui.js> })("<per-process token>");
+#      so only this script knows the token needed to call PtModBridge.
+#      The script is idempotent (window.__ptmodLoaded), so injecting it from
+#      onPageStarted / onPageCommitVisible / onPageFinished is safe.
+#   2. Legacy custom.js (kept): <external files>/scripts/custom.js first, then
+#      <internal files>/scripts/custom.js, run once per document inside a
+#      try/catch IIFE.
+# Never throws: every entry point is fully defensive.
 #
-# No permissions added. No WakeLock. Does not touch PonyTownInterface,
-# auth, billing, or the game's own JS.
+# No permissions added. No WakeLock. Does not touch PonyTownInterface, auth,
+# billing, or the game's own JS.
 #
 .class public final Ltown/pony/game/mod/JsInjector;
 .super Ljava/lang/Object;
@@ -101,14 +93,12 @@
 
 # ---------------------------------------------------------------------------
 # public static void onPageStarted(WebView, String url)
-# Earliest-safe injection: evaluates the custom script wrapped in the §7
-# try/catch IIFE inside a one-shot DOM-ready guard. If the document does
-# not exist yet, the wrapper retries in-JS (max 20 x 100 ms) and then gives
-# up silently -- the onPageFinished path is the guaranteed fallback.
+# Also called from onPageCommitVisible (earliest point the new document exists).
 # ---------------------------------------------------------------------------
 .method public static onPageStarted(Landroid/webkit/WebView;Ljava/lang/String;)V
-    .locals 2
+    .locals 1
 
+    :try_start_0
     if-eqz p0, :goto_ret
 
     invoke-static {p1}, Ltown/pony/game/mod/JsInjector;->isPonyTownUrl(Ljava/lang/String;)Z
@@ -117,51 +107,28 @@
 
     if-eqz v0, :goto_ret
 
-    invoke-virtual {p0}, Landroid/webkit/WebView;->getContext()Landroid/content/Context;
+    invoke-static {p0}, Ltown/pony/game/mod/JsInjector;->inject(Landroid/webkit/WebView;)V
 
-    move-result-object v0
-
-    invoke-static {v0}, Ltown/pony/game/mod/JsInjector;->readCustomScript(Landroid/content/Context;)Ljava/lang/String;
-
-    move-result-object v1
-
-    invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->isEmpty(Ljava/lang/String;)Z
-
-    move-result v0
-
-    # no custom.js -> expose the "LOAD SCRIPT" picker button instead (SAF)
-    if-nez v0, :goto_ret
-
-    const-string v0, "(function(){ var _n=0; function _r(){ if (window.__ptModInjected) return; if (document && document.documentElement) { window.__ptModInjected=1; (function(){ try { "
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
-
-    move-result-object v0
-
-    const-string v1, " } catch(e) { console.error(\"Custom Script Error:\", e); } })(); } else if (++_n < 20) { setTimeout(_r, 100); } } _r(); })();"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
-
-    move-result-object v0
-
-    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
 
     :goto_ret
     return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
 .end method
 
 # ---------------------------------------------------------------------------
 # public static void onPageFinished(WebView, String url)
-# Page-finished injection: plain §7 wrapper (document is guaranteed to exist).
-# Also registers the "PtModBridge" JS interface (idempotent per WebView) so the
-# page can request the SAF file picker; and, when custom.js is absent, shows
-# the floating "LOAD SCRIPT" button.
+# Guaranteed path.  Also makes sure the PtModBridge JS interface exists.
 # ---------------------------------------------------------------------------
 .method public static onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V
-    .locals 2
+    .locals 1
 
-    # the bridge must exist even on the very first load (gate-safe: it only
-    # registers an interface, nothing is executed until the page asks for it)
+    :try_start_0
     invoke-static {p0}, Ltown/pony/game/mod/PtModBridge;->ensureBridge(Landroid/webkit/WebView;)V
 
     if-eqz p0, :goto_ret
@@ -172,7 +139,112 @@
 
     if-eqz v0, :goto_ret
 
-    invoke-virtual {p0}, Landroid/webkit/WebView;->getContext()Landroid/content/Context;
+    invoke-static {p0}, Ltown/pony/game/mod/JsInjector;->inject(Landroid/webkit/WebView;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+# private static void inject(WebView)   (URL gate already passed)
+# ---------------------------------------------------------------------------
+.method private static inject(Landroid/webkit/WebView;)V
+    .locals 0
+
+    invoke-static {p0}, Ltown/pony/game/mod/JsInjector;->injectUi(Landroid/webkit/WebView;)V
+
+    invoke-static {p0}, Ltown/pony/game/mod/JsInjector;->injectLegacy(Landroid/webkit/WebView;)V
+
+    return-void
+.end method
+
+# ---------------------------------------------------------------------------
+# private static void injectUi(WebView)
+# Reads assets/ptmod/ui.js and evaluates it wrapped with the bridge token.
+# ---------------------------------------------------------------------------
+.method private static injectUi(Landroid/webkit/WebView;)V
+    .locals 4
+
+    :try_start_0
+    invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
+
+    move-result-object v0
+
+    const-string v1, "ptmod/ui.js"
+
+    invoke-static {v0, v1}, Ltown/pony/game/mod/JsInjector;->readAsset(Landroid/content/Context;Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->isEmpty(Ljava/lang/String;)Z
+
+    move-result v2
+
+    if-nez v2, :goto_ret
+
+    new-instance v2, Ljava/lang/StringBuilder;
+
+    invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
+
+    const-string v3, "(function(__PT_TOKEN){"
+
+    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v2, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    const-string v3, "\n})("
+
+    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-static {}, Ltown/pony/game/mod/PtModBridge;->token()Ljava/lang/String;
+
+    move-result-object v3
+
+    invoke-static {v3}, Lorg/json/JSONObject;->quote(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v3
+
+    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    const-string v3, ");"
+
+    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-static {p0, v2}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+# private static void injectLegacy(WebView)
+# custom.js (external, then internal) -- once per document.
+# ---------------------------------------------------------------------------
+.method private static injectLegacy(Landroid/webkit/WebView;)V
+    .locals 3
+
+    :try_start_0
+    invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
 
     move-result-object v0
 
@@ -182,12 +254,11 @@
 
     invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->isEmpty(Ljava/lang/String;)Z
 
-    move-result v0
+    move-result v2
 
-    # no custom.js -> expose the "LOAD SCRIPT" picker button instead (SAF)
-    if-nez v0, :goto_bootstrap
+    if-nez v2, :goto_ret
 
-    const-string v0, "(function(){ try { "
+    const-string v0, "(function(){ if (window.__ptModInjected) return; window.__ptModInjected=1; try { "
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
 
@@ -201,13 +272,74 @@
 
     invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
 
-    :goto_bootstrap
-    const-string v0, "(function(){ if(window.__ptBtn) return; var n=0; var b=document.createElement('button'); b.id='ptLoadBtn'; b.textContent='LOAD SCRIPT'; b.style.cssText='position:fixed;top:8px;left:8px;z-index:99999;padding:3px 8px;opacity:.55;background:#c33;color:#fff;border:0;border-radius:4px;font:bold 11px sans-serif'; b.onclick=function(){ if(window.PtModBridge) PtModBridge.pickScript(); }; var a=function(){ if(document.documentElement && window.PtModBridge){ if(window.__ptBtn) return; document.documentElement.appendChild(b); window.__ptBtn=1; return; } if(++n<25) setTimeout(a,200); }; a(); })();"
-
-    invoke-static {p0, v0}, Ltown/pony/game/mod/JsInjector;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
 
     :goto_ret
     return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+# private static String readAsset(Context, String name)
+# Reads an APK asset fully as UTF-8 text; null when missing/unreadable.
+# ---------------------------------------------------------------------------
+.method private static readAsset(Landroid/content/Context;Ljava/lang/String;)Ljava/lang/String;
+    .locals 6
+
+    :try_start_0
+    invoke-virtual {p0}, Landroid/content/Context;->getAssets()Landroid/content/res/AssetManager;
+
+    move-result-object v0
+
+    invoke-virtual {v0, p1}, Landroid/content/res/AssetManager;->open(Ljava/lang/String;)Ljava/io/InputStream;
+
+    move-result-object v1
+
+    new-instance v2, Ljava/io/ByteArrayOutputStream;
+
+    invoke-direct {v2}, Ljava/io/ByteArrayOutputStream;-><init>()V
+
+    const/16 v3, 0x2000
+
+    new-array v3, v3, [B
+
+    :goto_loop
+    invoke-virtual {v1, v3}, Ljava/io/InputStream;->read([B)I
+
+    move-result v4
+
+    if-ltz v4, :goto_done
+
+    const/4 v5, 0x0
+
+    invoke-virtual {v2, v3, v5, v4}, Ljava/io/ByteArrayOutputStream;->write([BII)V
+
+    goto :goto_loop
+
+    :goto_done
+    invoke-virtual {v1}, Ljava/io/InputStream;->close()V
+
+    const-string v3, "UTF-8"
+
+    invoke-virtual {v2, v3}, Ljava/io/ByteArrayOutputStream;->toString(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v0
+
+    return-object v0
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :catch_0
+    move-exception v0
+
+    const/4 v0, 0x0
+
+    return-object v0
 .end method
 
 # ---------------------------------------------------------------------------

@@ -233,10 +233,23 @@
 .end method
 
 .method public final onPageCommitVisible(Landroid/webkit/WebView;Ljava/lang/String;)V
-    .locals 0
+    .locals 1
 
     .line 1
     invoke-super {p0, p1, p2}, Landroid/webkit/WebViewClient;->onPageCommitVisible(Landroid/webkit/WebView;Ljava/lang/String;)V
+
+    # ---- PonyTown Mod: inject UI as soon as the new document is visible ----
+    :try_start_ptmc
+    invoke-static {p1, p2}, Ltown/pony/game/mod/JsInjector;->onPageStarted(Landroid/webkit/WebView;Ljava/lang/String;)V
+    :try_end_ptmc
+    .catch Ljava/lang/Throwable; {:try_start_ptmc .. :try_end_ptmc} :catch_ptmc
+
+    goto :goto_ptmc
+
+    :catch_ptmc
+    move-exception v0
+
+    :goto_ptmc
 
     .line 2
     .line 3
@@ -330,7 +343,17 @@
     .line 35
     :goto_0
     # ---- PonyTown Mod (Stage 3): custom JS injector, page-finished ----
+    :try_start_ptmf
     invoke-static {p1, p2}, Ltown/pony/game/mod/JsInjector;->onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V
+    :try_end_ptmf
+    .catch Ljava/lang/Throwable; {:try_start_ptmf .. :try_end_ptmf} :catch_ptmf
+
+    goto :goto_ptmf
+
+    :catch_ptmf
+    move-exception v0
+
+    :goto_ptmf
 
     invoke-super {p0, p1, p2}, Landroid/webkit/WebViewClient;->onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V
 
@@ -341,13 +364,23 @@
 .end method
 
 .method public final onPageStarted(Landroid/webkit/WebView;Ljava/lang/String;Landroid/graphics/Bitmap;)V
-    .locals 0
+    .locals 1
 
     .line 1
     invoke-super {p0, p1, p2, p3}, Landroid/webkit/WebViewClient;->onPageStarted(Landroid/webkit/WebView;Ljava/lang/String;Landroid/graphics/Bitmap;)V
 
     # ---- PonyTown Mod (Stage 3): custom JS injector, earliest-safe (doc-start fallback) ----
+    :try_start_ptms
     invoke-static {p1, p2}, Ltown/pony/game/mod/JsInjector;->onPageStarted(Landroid/webkit/WebView;Ljava/lang/String;)V
+    :try_end_ptms
+    .catch Ljava/lang/Throwable; {:try_start_ptms .. :try_end_ptms} :catch_ptms
+
+    goto :goto_ptms
+
+    :catch_ptms
+    move-exception v0
+
+    :goto_ptms
 
     .line 2
     .line 3

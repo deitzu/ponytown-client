@@ -101,3 +101,35 @@ Found by reading the smali (not yet verified on a device). Rebuilt with apktool 
 `PonyTownWebViewImpl.e()` (the lifecycle `onStop`) calls `WebView.pauseTimers()`. That freezes the game's JS timers while the foreground service keeps the process alive, so heartbeats stop and the server drops the connection. **Fixed**: the `pauseTimers()` call is removed. Volume is still muted on stop. Not changed: Doze / Wi-Fi power-save can still drop sockets on some devices; if kicks continue, a user-enabled WifiLock is the next option.
 
 Modified in this update: `JsInjector.smali`, `PtModBridge.smali`, `PonyTownWebViewImpl.smali` (new).
+---
+
+## Update 2026-10-07 (2) — Mod UI: script manager, virtual mouse, on-screen keys
+
+Built with apktool 2.10.0 (OK) and `ui.js` smoke-tested in desktop Chromium against a fake bridge. **Not run on a device** — native input delivery (hover/click/keys into the WebView) is verified only by compiling, so test it first.
+
+### How it is wired
+- A draggable **PT** launcher button (replaces the old red LOAD SCRIPT button) opens a panel with tabs **Scripts / Mouse / Keys / About**.
+- `assets/ptmod/ui.js` (new) is injected by `JsInjector` at `onPageStarted`, `onPageCommitVisible` and `onPageFinished` — pony.town only, idempotent. It is wrapped with a per-process random token; `PtModBridge` ignores any call without that token.
+- `PtModBridge` (rewritten) exposes `pickScript / exec / mouseMove / mouseBtn / key`. `PtInput` (new) posts real `MotionEvent`s (`TOOL_TYPE_MOUSE`, `SOURCE_MOUSE`) and `KeyEvent`s onto the WebView UI thread, so hover, `:hover` and `isTrusted` events work like a physical mouse/keyboard.
+- All hooks in `y5/m` and `PonyTownWebViewImpl` are wrapped in `try/catch Throwable`.
+
+### Scripts tab
+Load `.js` from the file picker, New (paste), View/Edit, Run, Remove, enable/disable checkbox, and a run timing per script (`start` / `ready` / `load`). Scripts live in the pony.town origin's localStorage and run automatically on every page load. Disabling or removing stops it fully after a page reload. Legacy `files/scripts/custom.js` still works.
+
+### Mouse tab
+- On/off, **type: Touch** (cursor follows finger; press = click, drag = drag) or **Trackpad** (swipe moves, tap = left click, tap-and-hold = drag, two-finger tap = right click, on-screen L/R buttons).
+- Sensitivity, cursor visibility and size.
+- "Report hover/fine pointer" makes `matchMedia('(hover:hover)')` / `(pointer:fine)` (and `any-*`) return true while the mouse is on, and fires `change` listeners.
+- Built-in hover test area. Page scripts can read `window.ptmod.mouse` and listen for the `ptmod:mouse` event.
+- While the mouse is on, the page's own touch events are blocked (touch becomes mouse), except over the mod UI.
+
+### Keys tab
+On-screen key buttons (A–Z, 0–9, arrows, Space, Shift, Ctrl, Alt, Tab, Esc, Enter, Backspace). Presets: WASD, WASD + Space/Shift, Arrows. Add/remove keys, change key and size, drag to arrange (Edit layout), opacity. Sent as real Android key events (native) or synthetic page events.
+
+### Limits
+- Multi-touch holding several keys works through pointer events; actual feel on your device is untested.
+- Modifier buttons don't set `shiftKey`/`ctrlKey` on other keys.
+- Games that read raw touch only (not mouse) ignore the virtual mouse.
+- The panel/cursor render inside the page; if the game opens a fullscreen element they may be hidden.
+
+Files: `PtInput.smali` (new), `PtModBridge.smali`, `JsInjector.smali`, `y5/m.smali`, `PonyTownWebViewImpl.smali`, `assets/ptmod/ui.js` (new).

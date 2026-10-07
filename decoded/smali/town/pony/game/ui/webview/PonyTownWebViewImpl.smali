@@ -1190,7 +1190,17 @@
     invoke-virtual {p0, v0, p3}, Landroid/webkit/WebView;->addJavascriptInterface(Ljava/lang/Object;Ljava/lang/String;)V
 
     # PonyTown Mod: register PtModBridge at creation (before first load) so window.PtModBridge exists on the page
+    :try_start_ptb
     invoke-static {p0}, Ltown/pony/game/mod/PtModBridge;->ensureBridge(Landroid/webkit/WebView;)V
+    :try_end_ptb
+    .catch Ljava/lang/Throwable; {:try_start_ptb .. :try_end_ptb} :catch_ptb
+
+    goto :goto_ptb
+
+    :catch_ptb
+    move-exception p3
+
+    :goto_ptb
 
     .line 469
     .line 470
