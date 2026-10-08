@@ -493,6 +493,50 @@
     return-void
 .end method
 
+.method public onUserLeaveHint()V
+    .locals 4
+
+    invoke-super {p0}, Lg/i;->onUserLeaveHint()V
+
+    :try_start_0
+    sget-boolean v0, Ltown/pony/game/mod/PtModBridge;->sPipOff:Z
+
+    if-nez v0, :goto_ret
+
+    new-instance v0, Landroid/app/PictureInPictureParams$Builder;
+
+    invoke-direct {v0}, Landroid/app/PictureInPictureParams$Builder;-><init>()V
+
+    new-instance v1, Landroid/util/Rational;
+
+    const/16 v2, 0x10
+
+    const/16 v3, 0x9
+
+    invoke-direct {v1, v2, v3}, Landroid/util/Rational;-><init>(II)V
+
+    invoke-virtual {v0, v1}, Landroid/app/PictureInPictureParams$Builder;->setAspectRatio(Landroid/util/Rational;)Landroid/app/PictureInPictureParams$Builder;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Landroid/app/PictureInPictureParams$Builder;->build()Landroid/app/PictureInPictureParams;
+
+    move-result-object v0
+
+    invoke-virtual {p0, v0}, Landroid/app/Activity;->enterPictureInPictureMode(Landroid/app/PictureInPictureParams;)Z
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
 .method public final onMultiWindowModeChanged(Z)V
     .locals 1
 

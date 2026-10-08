@@ -191,3 +191,9 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 - Cursor controls (L, R, ⇞ ▲ ▼ ⇟) are now individual fixed buttons (`#ctl` layer) with saved positions (`S.ctlPos`).
 - Keys tab: key opacity (min 0.05), "transparent key background", cursor-control opacity / size (S/M/L/XL) / transparent background, "Edit layout" now drags both keys and cursor controls (controls are shown while editing), "Reset control layout".
 - Only `assets/ptmod/ui.js` changed; no smali changes.
+
+## Update 2026-10-08 (7) — bigger key set, slide between keys, auto Picture-in-Picture
+
+- Key table extended: F1–F12, numpad 0–9, Del/Ins/Home/End/PgUp/PgDn/Caps and US-layout symbols (`- = [ ] \ ; ' , . / \``, plus shifted `_ + { } | : " < > ? ~ ! @ # $ % ^ & * ( )`). Shifted symbols send Shift down/up around the key in native mode (and `shiftKey:true` in synthetic mode).
+- Keys tab: "Slide between keys" (global) + per-key Slide default/on/off. With slide on, a finger that leaves a key releases it without lifting; gliding onto a neighbouring key presses it. Entering a key from empty space only presses it if the finger was on a key within 200 ms / 28 px (adjacent keys).
+- Auto PiP: `MainActivity.onUserLeaveHint` enters Picture-in-Picture (16:9) unless disabled; toggle in About tab (`PtModBridge.setPip(token, bool)`, static `sPipOff`). The overlay hides itself when the viewport is tiny (PiP window). Manifest already declared `supportsPictureInPicture`.

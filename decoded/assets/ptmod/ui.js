@@ -46,6 +46,29 @@
     KD.Left = { label: '←', android: 21, key: 'ArrowLeft', code: 'ArrowLeft', kc: 37 };
     KD.Right = { label: '→', android: 22, key: 'ArrowRight', code: 'ArrowRight', kc: 39 };
   })();
+  (function () {
+    var i, n;
+    for (i = 1; i <= 12; i++) KD['F' + i] = { label: 'F' + i, android: 130 + i, key: 'F' + i, code: 'F' + i, kc: 111 + i };
+    for (i = 0; i < 10; i++) KD['Num' + i] = { label: 'N' + i, android: 144 + i, key: '' + i, code: 'Numpad' + i, kc: 96 + i };
+    KD.Del = { label: 'Del', android: 112, key: 'Delete', code: 'Delete', kc: 46 };
+    KD.Ins = { label: 'Ins', android: 124, key: 'Insert', code: 'Insert', kc: 45 };
+    KD.Home = { label: 'Home', android: 122, key: 'Home', code: 'Home', kc: 36 };
+    KD.End = { label: 'End', android: 123, key: 'End', code: 'End', kc: 35 };
+    KD.PgUp = { label: 'PgUp', android: 92, key: 'PageUp', code: 'PageUp', kc: 33 };
+    KD.PgDn = { label: 'PgDn', android: 93, key: 'PageDown', code: 'PageDown', kc: 34 };
+    KD.Caps = { label: 'Caps', android: 115, key: 'CapsLock', code: 'CapsLock', kc: 20 };
+    // symbols: [name, android keycode, key char, code, keyCode, needs shift]
+    [['-', 69, '-', 'Minus', 189, 0], ['_', 69, '_', 'Minus', 189, 1], ['=', 70, '=', 'Equal', 187, 0], ['+', 70, '+', 'Equal', 187, 1],
+     ['[', 71, '[', 'BracketLeft', 219, 0], ['{', 71, '{', 'BracketLeft', 219, 1], [']', 72, ']', 'BracketRight', 221, 0], ['}', 72, '}', 'BracketRight', 221, 1],
+     ['\\', 73, '\\', 'Backslash', 220, 0], ['|', 73, '|', 'Backslash', 220, 1], [';', 74, ';', 'Semicolon', 186, 0], [':', 74, ':', 'Semicolon', 186, 1],
+     ["'", 75, "'", 'Quote', 222, 0], ['"', 75, '"', 'Quote', 222, 1], [',', 55, ',', 'Comma', 188, 0], ['<', 55, '<', 'Comma', 188, 1],
+     ['.', 56, '.', 'Period', 190, 0], ['>', 56, '>', 'Period', 190, 1], ['/', 76, '/', 'Slash', 191, 0], ['?', 76, '?', 'Slash', 191, 1],
+     ['`', 68, '`', 'Backquote', 192, 0], ['~', 68, '~', 'Backquote', 192, 1],
+     ['!', 8, '!', 'Digit1', 49, 1], ['@', 9, '@', 'Digit2', 50, 1], ['#', 10, '#', 'Digit3', 51, 1], ['$', 11, '$', 'Digit4', 52, 1],
+     ['%', 12, '%', 'Digit5', 53, 1], ['^', 13, '^', 'Digit6', 54, 1], ['&', 14, '&', 'Digit7', 55, 1], ['*', 15, '*', 'Digit8', 56, 1],
+     ['(', 16, '(', 'Digit9', 57, 1], [')', 7, ')', 'Digit0', 48, 1]
+    ].forEach(function (a) { KD[a[0]] = { label: a[0], android: a[1], key: a[2], code: a[3], kc: a[4], shift: !!a[5] }; });
+  })();
   var KEY_NAMES = Object.keys(KD);
 
   var PRESETS = {
@@ -61,7 +84,7 @@
   var DEF = {
     mouseOn: false, dragMethod: 0, touchCompat: false, fixEvents: true, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, scrollBtns: true, scrollMode: 'native', spoofMedia: true,
     keysOn: false, keyMode: 'native', keyOpacity: 0.55, keyNoFill: false, keys: null,
-    ctlOpacity: 0.9, ctlNoFill: false, ctlSize: 1, ctlPos: {},
+    keySlide: true, pip: true, ctlOpacity: 0.9, ctlNoFill: false, ctlSize: 1, ctlPos: {},
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
   var S = lsGet(LS_S, {});
@@ -84,6 +107,7 @@
     if (b && b.exec) { try { b.exec(T, code); return true; } catch (e) { /* fall through */ } }
     try { (0, eval)(code); return true; } catch (e2) { console.error('[ptmod] exec failed', e2); return false; }
   }
+  function sendPip() { var b = B(); if (b && b.setPip) { try { b.setPip(T, !!S.pip); } catch (e) { /* ignore */ } } }
   function bridgeOk() { var b = B(); return !!(b && b.mouseMove && b.mouseBtn && b.mouseScroll && b.key && b.exec && b.pickScript); }
 
   // ------------------------------------------------------------------ script manager
@@ -294,6 +318,7 @@
     h += '<label class="f"><span><b>On-screen keys</b></span><input type="checkbox" data-a="keysOn"' + (S.keysOn ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Send as</span><select data-a="keyMode"><option value="native"' + (S.keyMode === 'native' ? ' selected' : '') + '>Real key events (native)</option><option value="synthetic"' + (S.keyMode === 'synthetic' ? ' selected' : '') + '>Page events (synthetic)</option></select></label>';
     h += '<label class="f"><span>Opacity <b id="kov">' + S.keyOpacity + '</b></span><input type="range" min="0.05" max="1" step="0.05" value="' + S.keyOpacity + '" data-a="kopacity"></label>';
+    h += '<label class="f"><span>Slide between keys (release when finger leaves a key; press when it glides onto a neighbouring key)</span><input type="checkbox" data-a="keySlide"' + (S.keySlide ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Transparent key background</span><input type="checkbox" data-a="keyNoFill"' + (S.keyNoFill ? ' checked' : '') + '></label>';
     h += '<div class="muted"><b>Cursor controls</b> (L/R + scroll buttons)</div>';
     h += '<label class="f"><span>Opacity <b id="cov">' + S.ctlOpacity + '</b></span><input type="range" min="0.05" max="1" step="0.05" value="' + S.ctlOpacity + '" data-a="copacity"></label>';
@@ -305,6 +330,7 @@
     S.keys.forEach(function (k) {
       h += '<div class="item"><select data-a="kkey" data-id="' + k.id + '">' + KEY_NAMES.map(function (n) { return '<option' + (n === k.k ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>' +
         '<select data-a="ksize" data-id="' + k.id + '">' + [[44, 'S'], [56, 'M'], [72, 'L']].map(function (z) { return '<option value="' + z[0] + '"' + (k.size === z[0] ? ' selected' : '') + '>' + z[1] + '</option>'; }).join('') + '</select>' +
+        '<select data-a="kslide" data-id="' + k.id + '" title="Slide"><option value=""' + (k.slide === undefined ? ' selected' : '') + '>Slide: default</option><option value="1"' + (k.slide === true ? ' selected' : '') + '>Slide: on</option><option value="0"' + (k.slide === false ? ' selected' : '') + '>Slide: off</option></select>' +
         '<div class="name"></div><button class="btn danger" data-a="kdel" data-id="' + k.id + '">Remove</button></div>';
     });
     h += '<div class="muted">Native mode sends real Android key events (keydown/keyup like a keyboard). Modifier keys held via buttons do not set shiftKey/ctrlKey on other keys.</div>';
@@ -325,6 +351,7 @@
       '<div>Token</div><div class="' + (T ? 'ok' : 'bad') + '">' + (T ? 'present' : 'missing') + '</div>' +
       '<div>Pixel ratio</div><div>' + dpr() + '</div>' +
       '<div>Viewport</div><div>' + window.innerWidth + '×' + window.innerHeight + '</div></div>' +
+      '<label class="f"><span>Auto Picture-in-Picture when leaving the app</span><input type="checkbox" data-a="pip"' + (S.pip ? ' checked' : '') + '></label>' +
       '<div class="row"><button class="btn" data-a="reload">Reload page</button><button class="btn danger" data-a="reset">Reset all mod data</button></div>' +
       '<div class="muted">Scripts and settings are stored in this app’s pony.town storage. The mod only runs on pony.town. Page scripts can read <code>window.ptmod.mouse</code> and listen for the <code>ptmod:mouse</code> event.</div>';
   }
@@ -468,6 +495,9 @@
       case 'keysOn': S.keysOn = t.checked; saveS(); buildKeys(); break;
       case 'keyMode': S.keyMode = t.value; saveS(); break;
       case 'kkey': S.keys.forEach(function (k) { if (k.id === id) k.k = t.value; }); saveS(); buildKeys(); break;
+      case 'kslide': S.keys.forEach(function (k) { if (k.id === id) k.slide = t.value === '' ? undefined : t.value === '1'; }); saveS(); break;
+      case 'keySlide': S.keySlide = t.checked; saveS(); break;
+      case 'pip': S.pip = t.checked; saveS(); sendPip(); break;
       case 'ksize': S.keys.forEach(function (k) { if (k.id === id) k.size = parseInt(t.value, 10) || 56; }); saveS(); buildKeys(); break;
     }
   });
@@ -837,16 +867,46 @@
   var pressedKeys = {};  // pointerId -> key def
   function synth(d, down) {
     try {
-      var ev = new KeyboardEvent(down ? 'keydown' : 'keyup', { key: d.key, code: d.code, bubbles: true, cancelable: true, composed: true });
+      var ev = new KeyboardEvent(down ? 'keydown' : 'keyup', { key: d.key, code: d.code, shiftKey: !!d.shift, bubbles: true, cancelable: true, composed: true });
       try { Object.defineProperty(ev, 'keyCode', { get: function () { return d.kc; } }); Object.defineProperty(ev, 'which', { get: function () { return d.kc; } }); } catch (x) { /* ignore */ }
       (document.activeElement || document.body || document).dispatchEvent(ev);
     } catch (e) { /* ignore */ }
   }
   function sendKey(def, down) {
     var d = KD[def.k]; if (!d) return;
-    if (S.keyMode === 'native' && B() && B().key) nKey(d.android, down); else synth(d, down);
+    if (S.keyMode === 'native' && B() && B().key) {
+      if (d.shift) { if (down) { nKey(59, true); nKey(d.android, true); } else { nKey(d.android, false); nKey(59, false); } }
+      else nKey(d.android, down);
+    } else synth(d, down);
   }
+  var slidePtr = {};   // pointerId -> last point seen inside a slide-enabled key
+  function slideOn(k) { return k.slide === undefined ? !!S.keySlide : !!k.slide; }
+  function keyAt(x, y) {
+    var c = keysLayer.children;
+    for (var i = 0; i < c.length; i++) {
+      var r = c[i].getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return c[i];
+    }
+    return null;
+  }
+  function keyCls(n, down) { n.className = 'kb' + (S.keyNoFill ? ' nofill' : '') + (down ? ' down' : ''); }
+  keysLayer.addEventListener('pointermove', function (e) {
+    if (keysEdit || e.pointerType === 'mouse') return;
+    var sp = slidePtr[e.pointerId]; if (!sp) return;
+    var pk = pressedKeys[e.pointerId], hn = keyAt(e.clientX, e.clientY), hk = hn && hn._k;
+    if (pk && hn === pk.node) { sp.x = e.clientX; sp.y = e.clientY; sp.t = Date.now(); return; }
+    if (hk && slideOn(hk)) {
+      var near = pk || (Date.now() - sp.t < 200) || (Math.abs(sp.x - e.clientX) + Math.abs(sp.y - e.clientY) <= 28);
+      if (!near) return;
+      if (pk) { keyCls(pk.node, false); sendKey(pk.def, false); }
+      pressedKeys[e.pointerId] = { def: hk, node: hn }; keyCls(hn, true); sendKey(hk, true);
+      sp.x = e.clientX; sp.y = e.clientY; sp.t = Date.now();
+    } else if (pk) {
+      delete pressedKeys[e.pointerId]; keyCls(pk.node, false); sendKey(pk.def, false);
+    }
+  });
   function releaseAllKeys() {
+    slidePtr = {};
     Object.keys(pressedKeys).forEach(function (pid) { sendKey(pressedKeys[pid].def, false); pressedKeys[pid].node.className = pressedKeys[pid].node.className.replace(' down', ''); });
     pressedKeys = {};
   }
@@ -863,6 +923,7 @@
     S.keys.forEach(function (k) {
       var d = KD[k.k]; if (!d) return;
       var n = el('div', 'kb' + (keysEdit ? ' edit' : ''), esc(d.label));
+      n._k = k;
       n.style.opacity = S.keyOpacity;
       if (S.keyNoFill) n.className += ' nofill';
       placeKey(n, k);
@@ -874,6 +935,7 @@
         if (keysEdit) { drag = { id: e.pointerId }; return; }
         n.className = 'kb down' + (S.keyNoFill ? ' nofill' : '');
         pressedKeys[e.pointerId] = { def: k, node: n };
+        if (slideOn(k)) slidePtr[e.pointerId] = { x: e.clientX, y: e.clientY, t: Date.now() };
         sendKey(k, true);
       });
       n.addEventListener('pointermove', function (e) {
@@ -884,7 +946,8 @@
       var up = function (e) {
         if (keysEdit) { if (drag) { drag = null; saveS(); } return; }
         var pk = pressedKeys[e.pointerId];
-        if (pk) { delete pressedKeys[e.pointerId]; n.className = 'kb' + (S.keyNoFill ? ' nofill' : ''); sendKey(k, false); }
+        delete slidePtr[e.pointerId];
+        if (pk) { delete pressedKeys[e.pointerId]; pk.node.className = 'kb' + (S.keyNoFill ? ' nofill' : ''); sendKey(pk.def, false); }
       };
       n.addEventListener('pointerup', up);
       n.addEventListener('pointercancel', up);
@@ -895,11 +958,13 @@
 
   // ------------------------------------------------------------------ lifecycle
   window.addEventListener('resize', function () {
-    placeFab(); clampCur(); drawCursor(); applyCtl();
+    placeFab(); clampCur(); drawCursor(); applyCtl(); checkPip();
     var nodes = keysLayer.children;
     for (var i = 0; i < nodes.length && i < S.keys.length; i++) placeKey(nodes[i], S.keys[i]);
   });
   document.addEventListener('visibilitychange', function () { if (document.hidden) { releaseAllKeys(); mUp(); } });
+
+  function checkPip() { try { host.style.display = (window.innerWidth < 520 && window.innerHeight < 330) ? 'none' : ''; } catch (e) { /* ignore */ } }
 
   function mount() {
     var parent = document.documentElement;
@@ -919,6 +984,7 @@
   placeFab();
   buildKeys();
   applyMouse();
+  sendPip(); checkPip();
 
   runPhase('start');
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { runPhase('ready'); });
