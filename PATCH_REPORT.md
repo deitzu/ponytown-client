@@ -184,3 +184,10 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 - **Mouse tab:** new **Scroll method** — `Native wheel at cursor` (default) or `JS scroll of element under cursor` (finds the nearest scrollable ancestor of the element under the cursor and scrolls it with `scrollBy`; falls back to native if none) for UI that ignores wheel events.
 - **Scroll buttons:** now their own group on the right edge (`⇞ ▲ ▼ ⇟`: page up, line up, line down, page down; hold to repeat) with their own switch **Scroll buttons**, visible in both touch and trackpad mode; scrolling happens at the cursor. **Two-finger scroll** is a separate switch. Previously one visibility rule (`lr || scrollOn`) drove the whole L/R + scroll bar, so turning scroll off never hid the buttons.
 - Not verified on a device yet.
+
+## Update 2026-10-08 (6) — cursor no longer presses overlay UI; transparency; editable cursor-control layout
+
+- The virtual cursor (native mouse events) is ignored by the mod's own on-screen keys and L/R/scroll buttons (`pointerType === 'mouse'` guard). Right before each cursor click, overlay buttons under the cursor get `pointer-events:none` (restored ~150 ms after release), so the click reaches the game/page beneath.
+- Cursor controls (L, R, ⇞ ▲ ▼ ⇟) are now individual fixed buttons (`#ctl` layer) with saved positions (`S.ctlPos`).
+- Keys tab: key opacity (min 0.05), "transparent key background", cursor-control opacity / size (S/M/L/XL) / transparent background, "Edit layout" now drags both keys and cursor controls (controls are shown while editing), "Reset control layout".
+- Only `assets/ptmod/ui.js` changed; no smali changes.

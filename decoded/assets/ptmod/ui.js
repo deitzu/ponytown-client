@@ -60,7 +60,8 @@
   // ------------------------------------------------------------------ settings
   var DEF = {
     mouseOn: false, dragMethod: 0, touchCompat: false, fixEvents: true, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, scrollBtns: true, scrollMode: 'native', spoofMedia: true,
-    keysOn: false, keyMode: 'native', keyOpacity: 0.55, keys: null,
+    keysOn: false, keyMode: 'native', keyOpacity: 0.55, keyNoFill: false, keys: null,
+    ctlOpacity: 0.9, ctlNoFill: false, ctlSize: 1, ctlPos: {},
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
   var S = lsGet(LS_S, {});
@@ -157,11 +158,12 @@
     '.kb{position:fixed;display:flex;align-items:center;justify-content:center;border-radius:12px;border:2px solid #ffffff88;background:#000;color:#fff;font:700 15px sans-serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}',
     '.kb.down{background:#1f6feb;border-color:#fff}',
     '.kb.edit{outline:2px dashed #f0b72f}',
-    '#lr{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:none;gap:10px;pointer-events:none}',
-    '#scr{position:fixed;right:10px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:8px;pointer-events:none}',
-    '#scr .lrb{width:54px;height:46px}',
-    '.lrb{width:74px;height:46px;border-radius:12px;border:2px solid #ffffff88;background:#000a;color:#fff;font:700 14px sans-serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}',
+    '#ctl{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none}',
+    '.lrb{position:fixed;display:flex;align-items:center;justify-content:center;border-radius:12px;border:2px solid #ffffff88;background:#000a;color:#fff;font:700 14px sans-serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}',
     '.lrb.down{background:#1f6feb}',
+    '.lrb.edit{outline:2px dashed #f0b72f}',
+    '.nofill{background:transparent!important}',
+    '.nofill.down{background:#1f6feb88!important}',
     '.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000d;color:#fff;padding:8px 14px;border-radius:18px;font-size:13px;pointer-events:none;max-width:90vw}'
   ].join('\n');
 
@@ -180,12 +182,10 @@
   var panel = el('div', 'panel'); panel.hidden = true;
   var cursorEl = el('div'); cursorEl.id = 'cursor';
   var keysLayer = el('div'); keysLayer.id = 'keys';
-  var lrBar = el('div'); lrBar.id = 'lr';
-  var scrBar = el('div'); scrBar.id = 'scr';
+  var ctlLayer = el('div'); ctlLayer.id = 'ctl';
   var toastEl = el('div', 'toast'); toastEl.style.display = 'none';
   root.appendChild(keysLayer);
-  root.appendChild(lrBar);
-  root.appendChild(scrBar);
+  root.appendChild(ctlLayer);
   root.appendChild(fab);
   root.appendChild(panel);
   root.appendChild(cursorEl);
@@ -293,8 +293,14 @@
     var h = '';
     h += '<label class="f"><span><b>On-screen keys</b></span><input type="checkbox" data-a="keysOn"' + (S.keysOn ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Send as</span><select data-a="keyMode"><option value="native"' + (S.keyMode === 'native' ? ' selected' : '') + '>Real key events (native)</option><option value="synthetic"' + (S.keyMode === 'synthetic' ? ' selected' : '') + '>Page events (synthetic)</option></select></label>';
-    h += '<label class="f"><span>Opacity <b id="kov">' + S.keyOpacity + '</b></span><input type="range" min="0.2" max="1" step="0.05" value="' + S.keyOpacity + '" data-a="kopacity"></label>';
-    h += '<div class="row"><button class="btn' + (keysEdit ? ' on' : '') + '" data-a="kedit">' + (keysEdit ? 'Done editing' : 'Edit layout (drag buttons)') + '</button><button class="btn" data-a="kadd">+ Add key</button></div>';
+    h += '<label class="f"><span>Opacity <b id="kov">' + S.keyOpacity + '</b></span><input type="range" min="0.05" max="1" step="0.05" value="' + S.keyOpacity + '" data-a="kopacity"></label>';
+    h += '<label class="f"><span>Transparent key background</span><input type="checkbox" data-a="keyNoFill"' + (S.keyNoFill ? ' checked' : '') + '></label>';
+    h += '<div class="muted"><b>Cursor controls</b> (L/R + scroll buttons)</div>';
+    h += '<label class="f"><span>Opacity <b id="cov">' + S.ctlOpacity + '</b></span><input type="range" min="0.05" max="1" step="0.05" value="' + S.ctlOpacity + '" data-a="copacity"></label>';
+    h += '<label class="f"><span>Size</span><select data-a="ctlsize">' + [[0.75, 'S'], [1, 'M'], [1.3, 'L'], [1.6, 'XL']].map(function (z) { return '<option value="' + z[0] + '"' + (S.ctlSize === z[0] ? ' selected' : '') + '>' + z[1] + '</option>'; }).join('') + '</select></label>';
+    h += '<label class="f"><span>Transparent control background</span><input type="checkbox" data-a="ctlNoFill"' + (S.ctlNoFill ? ' checked' : '') + '></label>';
+    h += '<div class="row"><button class="btn' + (keysEdit ? ' on' : '') + '" data-a="kedit">' + (keysEdit ? 'Done editing' : 'Edit layout (drag keys + cursor controls)') + '</button><button class="btn" data-a="ctlreset">Reset control layout</button></div>';
+    h += '<div class="row"><button class="btn" data-a="kadd">+ Add key</button></div>';
     h += '<div class="row">Presets: ' + Object.keys(PRESETS).map(function (p) { return '<button class="btn" data-a="kpreset" data-v="' + esc(p) + '">' + esc(p) + '</button>'; }).join('') + '</div>';
     S.keys.forEach(function (k) {
       h += '<div class="item"><select data-a="kkey" data-id="' + k.id + '">' + KEY_NAMES.map(function (n) { return '<option' + (n === k.k ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>' +
@@ -426,7 +432,8 @@
       case 'del': s = findScript(id); if (s && confirm('Remove ' + s.name + '?')) { scripts.splice(scripts.indexOf(s), 1); saveScripts(); render(); toast('Removed (reload to stop it)'); } break;
       case 'ed-cancel': editing = null; render(); break;
       case 'ed-save': case 'ed-run': saveEditor(a === 'ed-run'); break;
-      case 'kedit': keysEdit = !keysEdit; buildKeys(); render(); break;
+      case 'kedit': keysEdit = !keysEdit; buildKeys(); applyCtl(); render(); break;
+      case 'ctlreset': S.ctlPos = {}; saveS(); applyCtl(); toast('Control layout reset'); break;
       case 'kadd': S.keys.push({ id: uid(), k: 'E', fx: 0.5, fy: 0.5, size: 56 }); saveS(); buildKeys(); render(); break;
       case 'kpreset': S.keys = presetKeys(v); saveS(); buildKeys(); render(); break;
       case 'kdel': S.keys = S.keys.filter(function (k) { return k.id !== id; }); saveS(); buildKeys(); render(); break;
@@ -451,6 +458,9 @@
       case 'dragm': S.dragMethod = parseInt(t.value, 10) || 0; saveS(); break;
       case 'cursor': S.cursor = t.checked; saveS(); applyMouse(); break;
       case 'lr': S.lr = t.checked; saveS(); applyMouse(); break;
+      case 'keyNoFill': S.keyNoFill = t.checked; saveS(); buildKeys(); break;
+      case 'ctlNoFill': S.ctlNoFill = t.checked; saveS(); applyCtl(); break;
+      case 'ctlsize': S.ctlSize = parseFloat(t.value); saveS(); applyCtl(); break;
       case 'scrollOn': S.scrollOn = t.checked; saveS(); applyMouse(); break;
       case 'scrollBtns': S.scrollBtns = t.checked; saveS(); applyMouse(); break;
       case 'scrollMode': S.scrollMode = (t.value === 'js') ? 'js' : 'native'; saveS(); break;
@@ -467,6 +477,7 @@
     var n;
     if (a === 'sens') { S.sens = parseFloat(t.value); saveS(); n = panel.querySelector('#sensv'); if (n) n.textContent = S.sens; }
     else if (a === 'csize') { S.cursorSize = parseInt(t.value, 10); saveS(); n = panel.querySelector('#csv'); if (n) n.textContent = S.cursorSize; drawCursor(); }
+    else if (a === 'copacity') { S.ctlOpacity = parseFloat(t.value); saveS(); n = panel.querySelector('#cov'); if (n) n.textContent = S.ctlOpacity; applyCtl(); }
     else if (a === 'kopacity') { S.keyOpacity = parseFloat(t.value); saveS(); n = panel.querySelector('#kov'); if (n) n.textContent = S.keyOpacity; buildKeys(); }
   });
 
@@ -543,8 +554,28 @@
       if (end) synthTarget = null;
     } catch (x) { /* ignore */ }
   }
-  function mDown(b) {
+  // Pass-through: while the cursor clicks, our own overlay buttons under it ignore the pointer so the click reaches the page.
+  var thruList = [], thruTimer = 0;
+  function thruEnd() {
+    clearTimeout(thruTimer); thruTimer = 0;
+    thruList.forEach(function (n) { n.style.pointerEvents = ''; });
+    thruList = [];
+  }
+  function thruBegin(except) {
+    thruEnd();
+    if (keysEdit) return;
+    [keysLayer, ctlLayer].forEach(function (layer) {
+      for (var i = 0; i < layer.children.length; i++) {
+        var n = layer.children[i];
+        if (n === except || n.style.display === 'none') continue;
+        var r = n.getBoundingClientRect();
+        if (r.width && cur.x >= r.left && cur.x <= r.right && cur.y >= r.top && cur.y <= r.bottom) { n.style.pointerEvents = 'none'; thruList.push(n); }
+      }
+    });
+  }
+  function mDown(b, except) {
     if (held) mUp();
+    thruBegin(except);
     held = b || 1; nHover(cur.x, cur.y); nBtn(1, cur.x, cur.y, held); emitTouch('touchstart'); drawCursor(); publish('down');
   }
   function mDrag() { if (held) { nBtn(2, cur.x, cur.y, held | ((S.dragMethod || 0) << 8)); emitTouch('touchmove'); } else mHover(); }
@@ -552,6 +583,7 @@
     if (!held) return;
     var released = held;
     held = 0; nBtn(3, cur.x, cur.y, released); emitTouch('touchend'); drawCursor(); publish('up'); mHover();
+    if (thruList.length) { clearTimeout(thruTimer); thruTimer = setTimeout(thruEnd, 150); }
   }
   // Nearest scrollable ancestor of the element under the cursor (for "JS scrollBy" mode)
   function scrollableAt(x, y) {
@@ -578,50 +610,74 @@
   }
   function mClick(b) { mDown(b); setTimeout(mUp, 45); }
 
-  // L/R buttons (trackpad)
+  // Cursor controls: L/R + scroll buttons, individually placed (layout editable in Keys tab)
   var btnHold = 0;   // number of on-screen L/R buttons currently pressed
+  var CTL = [
+    { id: 'L', label: 'L', btn: 1, w: 74, h: 46, fx: 0.42, fy: 0.92, grp: 'lr' },
+    { id: 'R', label: 'R', btn: 2, w: 74, h: 46, fx: 0.58, fy: 0.92, grp: 'lr' },
+    { id: 'pu', label: '⇞', dy: 6.0, every: 180, w: 54, h: 46, fx: 0.95, fy: 0.30, grp: 'sc' },
+    { id: 'u', label: '▲', dy: 1.0, every: 90, w: 54, h: 46, fx: 0.95, fy: 0.42, grp: 'sc' },
+    { id: 'd', label: '▼', dy: -1.0, every: 90, w: 54, h: 46, fx: 0.95, fy: 0.54, grp: 'sc' },
+    { id: 'pd', label: '⇟', dy: -6.0, every: 180, w: 54, h: 46, fx: 0.95, fy: 0.66, grp: 'sc' }
+  ];
+  var ctlNodes = {};
+  function ctlPos(c) { var p = S.ctlPos && S.ctlPos[c.id]; return p || { fx: c.fx, fy: c.fy }; }
+  function placeCtl(c) {
+    var n = ctlNodes[c.id], w = window.innerWidth, h = window.innerHeight, p = ctlPos(c);
+    var bw = Math.round(c.w * S.ctlSize), bh = Math.round(c.h * S.ctlSize);
+    n.style.width = bw + 'px'; n.style.height = bh + 'px';
+    n.style.left = Math.max(0, Math.min(w - bw, p.fx * w - bw / 2)) + 'px';
+    n.style.top = Math.max(0, Math.min(h - bh, p.fy * h - bh / 2)) + 'px';
+  }
+  function applyCtl() {
+    var lrOn = S.mouseOn && S.mouseMode === 'trackpad' && S.lr, scOn = S.mouseOn && S.scrollBtns;
+    CTL.forEach(function (c) {
+      var n = ctlNodes[c.id];
+      n.style.display = (keysEdit || (c.grp === 'lr' ? lrOn : scOn)) ? 'flex' : 'none';
+      n.style.opacity = S.ctlOpacity;
+      n.className = 'lrb' + (S.ctlNoFill ? ' nofill' : '') + (keysEdit ? ' edit' : '');
+      placeCtl(c);
+    });
+  }
   (function () {
-    function mk(label, btn) {
-      var b = el('button', 'lrb', label);
-      var downId = null;
-      b.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        try { b.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
-        if (downId === null) btnHold++;
-        downId = e.pointerId; b.className = 'lrb down'; mDown(btn);
-      });
-      var up = function () {
-        b.className = 'lrb';
-        if (downId !== null) { downId = null; if (btnHold > 0) btnHold--; }
-        if (held === btn) mUp();
-      };
-      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
-      return b;
-    }
-    lrBar.appendChild(mk('L', 1)); lrBar.appendChild(mk('R', 2));
-    function mkScroll(label, dy, every) {
-      var b = el('button', 'lrb', label);
-      var timer = 0;
+    CTL.forEach(function (c) {
+      var b = el('button', 'lrb', c.label);
+      ctlNodes[c.id] = b;
+      var downId = null, timer = 0, drag = null;
+      function cls(on) { b.className = 'lrb' + (S.ctlNoFill ? ' nofill' : '') + (keysEdit ? ' edit' : '') + (on ? ' down' : ''); }
       function stop() {
         if (timer) { clearInterval(timer); timer = 0; }
-        b.className = 'lrb';
+        if (downId !== null) {
+          downId = null;
+          if (c.btn) { if (btnHold > 0) btnHold--; if (held === c.btn) mUp(); }
+        }
+        cls(false);
       }
       b.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse' && !keysEdit) return;   // the virtual cursor never presses our own controls
         e.preventDefault();
         try { b.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
-        b.className = 'lrb down';
-        mScroll(0, dy);
-        timer = setInterval(function () { mScroll(0, dy); }, every);
+        if (keysEdit) { drag = { id: e.pointerId }; return; }
+        if (downId !== null) return;
+        downId = e.pointerId; cls(true);
+        if (c.btn) { btnHold++; mDown(c.btn, b); }
+        else { mScroll(0, c.dy); timer = setInterval(function () { mScroll(0, c.dy); }, c.every); }
       });
-      b.addEventListener('pointerup', stop);
-      b.addEventListener('pointercancel', stop);
-      b.addEventListener('lostpointercapture', stop);
-      scrBar.appendChild(b);
-    }
-    mkScroll('\u21DE', 6.0, 180);    // page up
-    mkScroll('\u25B2', 1.0, 90);     // line up
-    mkScroll('\u25BC', -1.0, 90);    // line down
-    mkScroll('\u21DF', -6.0, 180);   // page down
+      b.addEventListener('pointermove', function (e) {
+        if (keysEdit && drag && e.pointerId === drag.id) {
+          if (!S.ctlPos) S.ctlPos = {};
+          S.ctlPos[c.id] = { fx: e.clientX / window.innerWidth, fy: e.clientY / window.innerHeight }; placeCtl(c);
+        }
+      });
+      var up = function (e) {
+        if (keysEdit) { if (drag) { drag = null; saveS(); } return; }
+        if (e && downId !== null && e.pointerId !== downId) return;
+        stop();
+      };
+      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+      ctlLayer.appendChild(b);
+    });
+    applyCtl();
   })();
 
   function inUi(e) {
@@ -730,8 +786,7 @@
   function applyMouse() {
     if (!S.mouseOn && held) mUp();
     tp.id = null;
-    lrBar.style.display = (S.mouseOn && S.mouseMode === 'trackpad' && S.lr) ? 'flex' : 'none';
-    scrBar.style.display = (S.mouseOn && S.scrollBtns) ? 'flex' : 'none';
+    applyCtl();
     clampCur(); drawCursor(); publish('mode');
     if (S.mouseOn) mHover();
     fireMediaChange();
@@ -809,13 +864,15 @@
       var d = KD[k.k]; if (!d) return;
       var n = el('div', 'kb' + (keysEdit ? ' edit' : ''), esc(d.label));
       n.style.opacity = S.keyOpacity;
+      if (S.keyNoFill) n.className += ' nofill';
       placeKey(n, k);
       var drag = null;
       n.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse' && !keysEdit) return;   // the virtual cursor never presses on-screen keys
         e.preventDefault();
         try { n.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
         if (keysEdit) { drag = { id: e.pointerId }; return; }
-        n.className = 'kb down';
+        n.className = 'kb down' + (S.keyNoFill ? ' nofill' : '');
         pressedKeys[e.pointerId] = { def: k, node: n };
         sendKey(k, true);
       });
@@ -827,7 +884,7 @@
       var up = function (e) {
         if (keysEdit) { if (drag) { drag = null; saveS(); } return; }
         var pk = pressedKeys[e.pointerId];
-        if (pk) { delete pressedKeys[e.pointerId]; n.className = 'kb'; sendKey(k, false); }
+        if (pk) { delete pressedKeys[e.pointerId]; n.className = 'kb' + (S.keyNoFill ? ' nofill' : ''); sendKey(k, false); }
       };
       n.addEventListener('pointerup', up);
       n.addEventListener('pointercancel', up);
@@ -838,7 +895,7 @@
 
   // ------------------------------------------------------------------ lifecycle
   window.addEventListener('resize', function () {
-    placeFab(); clampCur(); drawCursor();
+    placeFab(); clampCur(); drawCursor(); applyCtl();
     var nodes = keysLayer.children;
     for (var i = 0; i < nodes.length && i < S.keys.length; i++) placeKey(nodes[i], S.keys[i]);
   });
