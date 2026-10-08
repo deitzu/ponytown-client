@@ -197,3 +197,8 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 - Key table extended: F1–F12, numpad 0–9, Del/Ins/Home/End/PgUp/PgDn/Caps and US-layout symbols (`- = [ ] \ ; ' , . / \``, plus shifted `_ + { } | : " < > ? ~ ! @ # $ % ^ & * ( )`). Shifted symbols send Shift down/up around the key in native mode (and `shiftKey:true` in synthetic mode).
 - Keys tab: "Slide between keys" (global) + per-key Slide default/on/off. With slide on, a finger that leaves a key releases it without lifting; gliding onto a neighbouring key presses it. Entering a key from empty space only presses it if the finger was on a key within 200 ms / 28 px (adjacent keys).
 - Auto PiP: `MainActivity.onUserLeaveHint` enters Picture-in-Picture (16:9) unless disabled; toggle in About tab (`PtModBridge.setPip(token, bool)`, static `sPipOff`). The overlay hides itself when the viewport is tiny (PiP window). Manifest already declared `supportsPictureInPicture`.
+
+## Fix 2026-10-08 (8) — startup crash from the PiP hook
+
+- Crash (`LinkageError: MainActivity.onUserLeaveHint() overrides final method in class Lb/q`): androidx `ComponentActivity` (`Lb/q`) declares `onUserLeaveHint` final, so the override from update (7) made the class fail to load.
+- Fix: removed the override; new `PtPip implements Runnable` is added to `Lb/q.u` (the user-leave-hint listener list) from `MainActivity.onCreate`, and enters PiP from there.

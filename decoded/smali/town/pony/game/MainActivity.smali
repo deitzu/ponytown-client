@@ -74,6 +74,25 @@
     .line 1
     invoke-super {p0, p1}, Lb1/y;->onCreate(Landroid/os/Bundle;)V
 
+    # ---- PonyTown Mod: auto PiP (Lb/q.onUserLeaveHint is final -> use its listener list) ----
+    :try_start_pip
+    new-instance v0, Ltown/pony/game/mod/PtPip;
+
+    invoke-direct {v0, p0}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;)V
+
+    iget-object v1, p0, Lb/q;->u:Ljava/util/concurrent/CopyOnWriteArrayList;
+
+    invoke-virtual {v1, v0}, Ljava/util/concurrent/CopyOnWriteArrayList;->add(Ljava/lang/Object;)Z
+    :try_end_pip
+    .catch Ljava/lang/Throwable; {:try_start_pip .. :try_end_pip} :catch_pip
+
+    goto :goto_pip_done
+
+    :catch_pip
+    move-exception v0
+
+    :goto_pip_done
+
     # ---- PonyTown Mod (Stage 2): start keep-alive foreground service once ----
     sget-boolean v0, Ltown/pony/game/service/PonyTownService;->sStarted:Z
 
@@ -491,50 +510,6 @@
     .line 26
     :cond_0
     return-void
-.end method
-
-.method public onUserLeaveHint()V
-    .locals 4
-
-    invoke-super {p0}, Lg/i;->onUserLeaveHint()V
-
-    :try_start_0
-    sget-boolean v0, Ltown/pony/game/mod/PtModBridge;->sPipOff:Z
-
-    if-nez v0, :goto_ret
-
-    new-instance v0, Landroid/app/PictureInPictureParams$Builder;
-
-    invoke-direct {v0}, Landroid/app/PictureInPictureParams$Builder;-><init>()V
-
-    new-instance v1, Landroid/util/Rational;
-
-    const/16 v2, 0x10
-
-    const/16 v3, 0x9
-
-    invoke-direct {v1, v2, v3}, Landroid/util/Rational;-><init>(II)V
-
-    invoke-virtual {v0, v1}, Landroid/app/PictureInPictureParams$Builder;->setAspectRatio(Landroid/util/Rational;)Landroid/app/PictureInPictureParams$Builder;
-
-    move-result-object v0
-
-    invoke-virtual {v0}, Landroid/app/PictureInPictureParams$Builder;->build()Landroid/app/PictureInPictureParams;
-
-    move-result-object v0
-
-    invoke-virtual {p0, v0}, Landroid/app/Activity;->enterPictureInPictureMode(Landroid/app/PictureInPictureParams;)Z
-
-    :try_end_0
-    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
-
-    :goto_ret
-    return-void
-
-    :catch_0
-    move-exception v0
-
-    goto :goto_ret
 .end method
 
 .method public final onMultiWindowModeChanged(Z)V
