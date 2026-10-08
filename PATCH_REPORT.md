@@ -208,3 +208,7 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 - About tab: "Enter Picture-in-Picture now" (bridge `pipNow`), "Keep screen on" (bridge `setScreen`, `FLAG_KEEP_SCREEN_ON`), and "Wake lock" (bridge `setWake`/`getWake`).
 - Wake lock = `PARTIAL_WAKE_LOCK` (`PtWake`), state in SharedPreferences `ptmod_prefs/wake`, restored when the foreground service starts and released when it is destroyed. The foreground notification has a "Wake lock ON/OFF - tap to toggle" action (`PendingIntent.getService` → `PonyTownService` action `town.pony.game.WAKE_TOGGLE`). Added `WAKE_LOCK` permission.
 - `PtPip` is now a multi-mode UI-thread helper (0 auto on leave, 1 PiP now, 2 screen-on flag).
+
+## Fix 2026-10-08 (10) — new smali classes were never committed
+
+- `.gitignore` ignores `decoded/`; `PtPip.smali` and `PtWake.smali` were created but not tracked, so CI built APKs without them (`ClassNotFoundException: PtWake` crash in `PonyTownService.onCreate`; auto-PiP silently never ran because the missing `PtPip` was caught by try/catch). Both are now force-added. New smali files must be added with `git add -f`.
