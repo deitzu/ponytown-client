@@ -78,7 +78,9 @@
     :try_start_pip
     new-instance v0, Ltown/pony/game/mod/PtPip;
 
-    invoke-direct {v0, p0}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;)V
+    const/4 v1, 0x0
+
+    invoke-direct {v0, p0, v1, v1}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;IZ)V
 
     iget-object v1, p0, Lb/q;->u:Ljava/util/concurrent/CopyOnWriteArrayList;
 

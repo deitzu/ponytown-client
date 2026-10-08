@@ -431,6 +431,166 @@
 
 # ---------------------------------------------------------------------------
 # public void key(String token, int androidKeyCode, boolean down)  [JS-visible]
+.method public pipNow(Ljava/lang/String;)V
+    .locals 4
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    new-instance v1, Ltown/pony/game/mod/PtPip;
+
+    const/4 v2, 0x1
+
+    const/4 v3, 0x0
+
+    invoke-direct {v1, v0, v2, v3}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;IZ)V
+
+    invoke-virtual {v0, v1}, Landroid/app/Activity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+.method public setScreen(Ljava/lang/String;Z)V
+    .locals 4
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    new-instance v1, Ltown/pony/game/mod/PtPip;
+
+    const/4 v2, 0x2
+
+    invoke-direct {v1, v0, v2, p2}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;IZ)V
+
+    invoke-virtual {v0, v1}, Landroid/app/Activity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+.method public setWake(Ljava/lang/String;Z)V
+    .locals 3
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    invoke-static {v0}, Ltown/pony/game/mod/PtWake;->isOn(Landroid/content/Context;)Z
+
+    move-result v1
+
+    if-eq v1, p2, :goto_ret
+
+    new-instance v1, Landroid/content/Intent;
+
+    invoke-direct {v1}, Landroid/content/Intent;-><init>()V
+
+    const-string v2, "town.pony.game.service.PonyTownService"
+
+    invoke-virtual {v1, v0, v2}, Landroid/content/Intent;->setClassName(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+
+    const-string v2, "town.pony.game.WAKE_TOGGLE"
+
+    invoke-virtual {v1, v2}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+
+    invoke-virtual {v0, v1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+.method public getWake(Ljava/lang/String;)Z
+    .locals 2
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    const/4 v1, 0x0
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    invoke-static {v0}, Ltown/pony/game/mod/PtWake;->isOn(Landroid/content/Context;)Z
+
+    move-result v1
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return v1
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
 # ---------------------------------------------------------------------------
 .method public setPip(Ljava/lang/String;Z)V
     .locals 1

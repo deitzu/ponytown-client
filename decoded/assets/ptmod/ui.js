@@ -84,7 +84,7 @@
   var DEF = {
     mouseOn: false, dragMethod: 0, touchCompat: false, fixEvents: true, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, scrollBtns: true, scrollMode: 'native', spoofMedia: true,
     keysOn: false, keyMode: 'native', keyOpacity: 0.55, keyNoFill: false, keys: null,
-    keySlide: true, pip: true, ctlOpacity: 0.9, ctlNoFill: false, ctlSize: 1, ctlPos: {},
+    keySlide: true, pip: true, screenOn: false, ctlOpacity: 0.9, ctlNoFill: false, ctlSize: 1, ctlPos: {},
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
   var S = lsGet(LS_S, {});
@@ -107,6 +107,8 @@
     if (b && b.exec) { try { b.exec(T, code); return true; } catch (e) { /* fall through */ } }
     try { (0, eval)(code); return true; } catch (e2) { console.error('[ptmod] exec failed', e2); return false; }
   }
+  function getWake() { var b = B(); if (b && b.getWake) { try { return !!b.getWake(T); } catch (e) { /* ignore */ } } return false; }
+  function sendScreen() { var b = B(); if (b && b.setScreen) { try { b.setScreen(T, !!S.screenOn); } catch (e) { /* ignore */ } } }
   function sendPip() { var b = B(); if (b && b.setPip) { try { b.setPip(T, !!S.pip); } catch (e) { /* ignore */ } } }
   function bridgeOk() { var b = B(); return !!(b && b.mouseMove && b.mouseBtn && b.mouseScroll && b.key && b.exec && b.pickScript); }
 
@@ -351,6 +353,9 @@
       '<div>Token</div><div class="' + (T ? 'ok' : 'bad') + '">' + (T ? 'present' : 'missing') + '</div>' +
       '<div>Pixel ratio</div><div>' + dpr() + '</div>' +
       '<div>Viewport</div><div>' + window.innerWidth + '×' + window.innerHeight + '</div></div>' +
+      '<div class="row"><button class="btn" data-a="pipnow">Enter Picture-in-Picture now</button></div>' +
+      '<label class="f"><span>Wake lock: keep CPU awake in background (also toggleable from the notification)</span><input type="checkbox" data-a="wake"' + (getWake() ? ' checked' : '') + '></label>' +
+      '<label class="f"><span>Keep screen on while the game is open</span><input type="checkbox" data-a="screen"' + (S.screenOn ? ' checked' : '') + '></label>' +
       '<label class="f"><span>Auto Picture-in-Picture when leaving the app</span><input type="checkbox" data-a="pip"' + (S.pip ? ' checked' : '') + '></label>' +
       '<div class="row"><button class="btn" data-a="reload">Reload page</button><button class="btn danger" data-a="reset">Reset all mod data</button></div>' +
       '<div class="muted">Scripts and settings are stored in this app’s pony.town storage. The mod only runs on pony.town. Page scripts can read <code>window.ptmod.mouse</code> and listen for the <code>ptmod:mouse</code> event.</div>';
@@ -459,6 +464,7 @@
       case 'del': s = findScript(id); if (s && confirm('Remove ' + s.name + '?')) { scripts.splice(scripts.indexOf(s), 1); saveScripts(); render(); toast('Removed (reload to stop it)'); } break;
       case 'ed-cancel': editing = null; render(); break;
       case 'ed-save': case 'ed-run': saveEditor(a === 'ed-run'); break;
+      case 'pipnow': (function () { var b = B(); if (b && b.pipNow) { try { b.pipNow(T); } catch (e) { toast('PiP failed'); } } else toast('PiP not available'); })(); break;
       case 'kedit': keysEdit = !keysEdit; buildKeys(); applyCtl(); render(); break;
       case 'ctlreset': S.ctlPos = {}; saveS(); applyCtl(); toast('Control layout reset'); break;
       case 'kadd': S.keys.push({ id: uid(), k: 'E', fx: 0.5, fy: 0.5, size: 56 }); saveS(); buildKeys(); render(); break;
@@ -497,6 +503,8 @@
       case 'kkey': S.keys.forEach(function (k) { if (k.id === id) k.k = t.value; }); saveS(); buildKeys(); break;
       case 'kslide': S.keys.forEach(function (k) { if (k.id === id) k.slide = t.value === '' ? undefined : t.value === '1'; }); saveS(); break;
       case 'keySlide': S.keySlide = t.checked; saveS(); break;
+      case 'wake': (function () { var b = B(); if (b && b.setWake) { try { b.setWake(T, t.checked); } catch (e) { /* ignore */ } } setTimeout(render, 400); })(); break;
+      case 'screen': S.screenOn = t.checked; saveS(); sendScreen(); break;
       case 'pip': S.pip = t.checked; saveS(); sendPip(); break;
       case 'ksize': S.keys.forEach(function (k) { if (k.id === id) k.size = parseInt(t.value, 10) || 56; }); saveS(); buildKeys(); break;
     }
@@ -984,7 +992,7 @@
   placeFab();
   buildKeys();
   applyMouse();
-  sendPip(); checkPip();
+  sendPip(); sendScreen(); checkPip();
 
   runPhase('start');
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { runPhase('ready'); });

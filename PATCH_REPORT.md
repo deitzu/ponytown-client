@@ -202,3 +202,9 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 
 - Crash (`LinkageError: MainActivity.onUserLeaveHint() overrides final method in class Lb/q`): androidx `ComponentActivity` (`Lb/q`) declares `onUserLeaveHint` final, so the override from update (7) made the class fail to load.
 - Fix: removed the override; new `PtPip implements Runnable` is added to `Lb/q.u` (the user-leave-hint listener list) from `MainActivity.onCreate`, and enters PiP from there.
+
+## Update 2026-10-08 (9) — manual PiP button, wake lock
+
+- About tab: "Enter Picture-in-Picture now" (bridge `pipNow`), "Keep screen on" (bridge `setScreen`, `FLAG_KEEP_SCREEN_ON`), and "Wake lock" (bridge `setWake`/`getWake`).
+- Wake lock = `PARTIAL_WAKE_LOCK` (`PtWake`), state in SharedPreferences `ptmod_prefs/wake`, restored when the foreground service starts and released when it is destroyed. The foreground notification has a "Wake lock ON/OFF - tap to toggle" action (`PendingIntent.getService` → `PonyTownService` action `town.pony.game.WAKE_TOGGLE`). Added `WAKE_LOCK` permission.
+- `PtPip` is now a multi-mode UI-thread helper (0 auto on leave, 1 PiP now, 2 screen-on flag).
