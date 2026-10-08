@@ -289,13 +289,18 @@
     const/high16 v2, 0x3f800000
     iput v2, v4, Landroid/view/MotionEvent$PointerCoords;->size:F
 
+    # wheel deltas: buttons = dx * 100, code = dy * 100 (ints); x / y stay the cursor position
+    const/high16 v5, 0x42c80000
     const/16 v2, 0xA
-    iget v3, v0, Ltown/pony/game/mod/PtInput;->x:F
+    iget v3, v0, Ltown/pony/game/mod/PtInput;->buttons:I
+    int-to-float v3, v3
+    div-float/2addr v3, v5
     invoke-virtual {v4, v2, v3}, Landroid/view/MotionEvent$PointerCoords;->setAxisValue(IF)V
     const/16 v2, 0x9
-    iget v3, v0, Ltown/pony/game/mod/PtInput;->y:F
+    iget v3, v0, Ltown/pony/game/mod/PtInput;->code:I
+    int-to-float v3, v3
+    div-float/2addr v3, v5
     invoke-virtual {v4, v2, v3}, Landroid/view/MotionEvent$PointerCoords;->setAxisValue(IF)V
-
     const/4 v3, 0x1
     new-array v6, v3, [Landroid/view/MotionEvent$PointerProperties;
     const/4 v5, 0x0

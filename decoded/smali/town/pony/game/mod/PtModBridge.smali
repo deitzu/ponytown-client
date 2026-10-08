@@ -377,8 +377,8 @@
 # Native wheel/trackpad scroll.  dx = horizontal axis, dy = vertical axis.
 .end method
 # ---------------------------------------------------------------------------
-.method public mouseScroll(Ljava/lang/String;FF)V
-    .locals 7
+.method public mouseScroll(Ljava/lang/String;FFFF)V
+    .locals 9
 
     .annotation runtime Landroid/webkit/JavascriptInterface;
     .end annotation
@@ -394,15 +394,22 @@
 
     if-eqz v0, :goto_ret
 
+    # x,y = cursor (physical px); dx,dy = wheel notches -> sent as ints * 100
+    const/high16 v7, 0x42c80000
+
+    mul-float v8, p5, v7
+
+    float-to-int v4, v8
+
+    mul-float v8, p4, v7
+
+    float-to-int v5, v8
+
     const/4 v1, 0x7
 
     move v2, p2
 
     move v3, p3
-
-    const/4 v4, 0x0
-
-    const/4 v5, 0x0
 
     const/4 v6, 0x0
 

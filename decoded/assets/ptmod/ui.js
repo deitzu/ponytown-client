@@ -59,7 +59,7 @@
 
   // ------------------------------------------------------------------ settings
   var DEF = {
-    mouseOn: false, dragMethod: 0, touchCompat: false, fixEvents: true, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, spoofMedia: true,
+    mouseOn: false, dragMethod: 0, touchCompat: false, fixEvents: true, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, scrollBtns: true, scrollMode: 'native', spoofMedia: true,
     keysOn: false, keyMode: 'native', keyOpacity: 0.55, keys: null,
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
@@ -76,7 +76,7 @@
   function dpr() { return window.devicePixelRatio || 1; }
   function nHover(x, y) { var b = B(); if (b && b.mouseMove) { try { b.mouseMove(T, x * dpr(), y * dpr()); } catch (e) { /* ignore */ } } }
   function nBtn(phase, x, y, buttons) { var b = B(); if (b && b.mouseBtn) { try { b.mouseBtn(T, phase, x * dpr(), y * dpr(), buttons); } catch (e) { /* ignore */ } } }
-  function nScroll(dx, dy) { var b = B(); if (b && b.mouseScroll) { try { b.mouseScroll(T, dx, dy); } catch (e) { /* ignore */ } } }
+  function nScroll(dx, dy) { var b = B(); if (b && b.mouseScroll) { try { b.mouseScroll(T, cur.x * dpr(), cur.y * dpr(), dx, dy); } catch (e) { /* ignore */ } } }
   function nKey(code, down) { var b = B(); if (b && b.key) { try { b.key(T, code, !!down); } catch (e) { /* ignore */ } } }
   function nExec(code) {
     var b = B();
@@ -158,8 +158,10 @@
     '.kb.down{background:#1f6feb;border-color:#fff}',
     '.kb.edit{outline:2px dashed #f0b72f}',
     '#lr{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:none;gap:10px;pointer-events:none}',
-    '#lr .lrb{width:74px;height:46px;border-radius:12px;border:2px solid #ffffff88;background:#000a;color:#fff;font:700 14px sans-serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}',
-    '#lr .lrb.down{background:#1f6feb}',
+    '#scr{position:fixed;right:10px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:8px;pointer-events:none}',
+    '#scr .lrb{width:54px;height:46px}',
+    '.lrb{width:74px;height:46px;border-radius:12px;border:2px solid #ffffff88;background:#000a;color:#fff;font:700 14px sans-serif;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}',
+    '.lrb.down{background:#1f6feb}',
     '.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000d;color:#fff;padding:8px 14px;border-radius:18px;font-size:13px;pointer-events:none;max-width:90vw}'
   ].join('\n');
 
@@ -179,9 +181,11 @@
   var cursorEl = el('div'); cursorEl.id = 'cursor';
   var keysLayer = el('div'); keysLayer.id = 'keys';
   var lrBar = el('div'); lrBar.id = 'lr';
+  var scrBar = el('div'); scrBar.id = 'scr';
   var toastEl = el('div', 'toast'); toastEl.style.display = 'none';
   root.appendChild(keysLayer);
   root.appendChild(lrBar);
+  root.appendChild(scrBar);
   root.appendChild(fab);
   root.appendChild(panel);
   root.appendChild(cursorEl);
@@ -276,7 +280,9 @@
     h += '<label class="f"><span>Show cursor</span><input type="checkbox" data-a="cursor"' + (S.cursor ? ' checked' : '') + '></label>';
     h += '<label class="f"><span>Cursor size <b id="csv">' + S.cursorSize + '</b></span><input type="range" min="16" max="64" step="2" value="' + S.cursorSize + '" data-a="csize"></label>';
     h += '<label class="f"><span>On-screen L/R buttons (trackpad)</span><input type="checkbox" data-a="lr"' + (S.lr ? ' checked' : '') + '></label>';
-    h += '<label class="f"><span>Two-finger scroll + ▲▼ buttons</span><input type="checkbox" data-a="scrollOn"' + (S.scrollOn ? ' checked' : '') + '></label>';
+    h += '<label class="f"><span>Two-finger scroll (trackpad)</span><input type="checkbox" data-a="scrollOn"' + (S.scrollOn ? ' checked' : '') + '></label>';
+    h += '<label class="f"><span>Scroll buttons ⇞ ▲ ▼ ⇟ (right edge)</span><input type="checkbox" data-a="scrollBtns"' + (S.scrollBtns ? ' checked' : '') + '></label>';
+    h += '<label class="f"><span>Scroll method</span><select data-a="scrollMode"><option value="native"' + (S.scrollMode === 'native' ? ' selected' : '') + '>Native wheel at cursor</option><option value="js"' + (S.scrollMode === 'js' ? ' selected' : '') + '>JS scroll of element under cursor</option></select></label>';
     h += '<label class="f"><span>Report hover/fine pointer to page (matchMedia)</span><input type="checkbox" data-a="spoof"' + (S.spoofMedia ? ' checked' : '') + '></label>';
     h += '<div class="hover" id="dpad">Drag test: hold L (or tap-hold) and move<div id="dball"></div><div class="row dnd"><div class="chip" id="dchip" draggable="true">drag me</div><div class="zone" id="dzone">drop here</div></div><small id="dlog">down 0 | move(held) 0 | up 0 | dragstart 0 | drop 0</small></div>';
     h += '<div class="hover" id="ht">Hover test area<small id="hti">move the cursor here (trackpad mode: swipe outside the panel)</small></div>';
@@ -446,6 +452,8 @@
       case 'cursor': S.cursor = t.checked; saveS(); applyMouse(); break;
       case 'lr': S.lr = t.checked; saveS(); applyMouse(); break;
       case 'scrollOn': S.scrollOn = t.checked; saveS(); applyMouse(); break;
+      case 'scrollBtns': S.scrollBtns = t.checked; saveS(); applyMouse(); break;
+      case 'scrollMode': S.scrollMode = (t.value === 'js') ? 'js' : 'native'; saveS(); break;
       case 'spoof': S.spoofMedia = t.checked; saveS(); fireMediaChange(); break;
       case 'keysOn': S.keysOn = t.checked; saveS(); buildKeys(); break;
       case 'keyMode': S.keyMode = t.value; saveS(); break;
@@ -545,9 +553,26 @@
     var released = held;
     held = 0; nBtn(3, cur.x, cur.y, released); emitTouch('touchend'); drawCursor(); publish('up'); mHover();
   }
+  // Nearest scrollable ancestor of the element under the cursor (for "JS scrollBy" mode)
+  function scrollableAt(x, y) {
+    var n = document.elementFromPoint(x, y), cs;
+    while (n && n !== document.documentElement) {
+      try {
+        cs = getComputedStyle(n);
+        if (((/(auto|scroll|overlay)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 1) ||
+             (/(auto|scroll|overlay)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 1))) return n;
+      } catch (e) { /* ignore */ }
+      n = n.parentElement;
+    }
+    return null;
+  }
+  // dx/dy in wheel notches (positive dy = scroll up / content moves down)
   function mScroll(dx, dy) {
-    if (!S.scrollOn) return;
     if (!dx && !dy) return;
+    if (S.scrollMode === 'js') {
+      var n = scrollableAt(cur.x, cur.y);
+      if (n) { n.scrollBy(dx * 48, -dy * 48); publish('scroll'); return; }
+    }
     nScroll(dx, dy);
     publish('scroll');
   }
@@ -574,7 +599,7 @@
       return b;
     }
     lrBar.appendChild(mk('L', 1)); lrBar.appendChild(mk('R', 2));
-    function mkScroll(label, dy) {
+    function mkScroll(label, dy, every) {
       var b = el('button', 'lrb', label);
       var timer = 0;
       function stop() {
@@ -586,15 +611,17 @@
         try { b.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
         b.className = 'lrb down';
         mScroll(0, dy);
-        timer = setInterval(function () { mScroll(0, dy); }, 90);
+        timer = setInterval(function () { mScroll(0, dy); }, every);
       });
       b.addEventListener('pointerup', stop);
       b.addEventListener('pointercancel', stop);
       b.addEventListener('lostpointercapture', stop);
-      lrBar.appendChild(b);
+      scrBar.appendChild(b);
     }
-    mkScroll('▲', 1.0);
-    mkScroll('▼', -1.0);
+    mkScroll('\u21DE', 6.0, 180);    // page up
+    mkScroll('\u25B2', 1.0, 90);     // line up
+    mkScroll('\u25BC', -1.0, 90);    // line down
+    mkScroll('\u21DF', -6.0, 180);   // page down
   })();
 
   function inUi(e) {
@@ -653,7 +680,7 @@
         var sdy = t.clientY - tp.ly;
         if (Math.abs(t.clientX - tp.sx) + Math.abs(t.clientY - tp.sy) > 14) tp.twoMoved = true;
         tp.lx = t.clientX; tp.ly = t.clientY;
-        if (Math.abs(sdx) + Math.abs(sdy) > 0) mScroll(-sdx * S.sens * 0.08, -sdy * S.sens * 0.08);
+        if (S.scrollOn && Math.abs(sdx) + Math.abs(sdy) > 0) mScroll(-sdx * S.sens * 0.08, -sdy * S.sens * 0.08);
         return;
       }
       moveTo(cur.x + (t.clientX - tp.lx) * S.sens, cur.y + (t.clientY - tp.ly) * S.sens);
@@ -703,7 +730,8 @@
   function applyMouse() {
     if (!S.mouseOn && held) mUp();
     tp.id = null;
-    lrBar.style.display = (S.mouseOn && S.mouseMode === 'trackpad' && (S.lr || S.scrollOn)) ? 'flex' : 'none';
+    lrBar.style.display = (S.mouseOn && S.mouseMode === 'trackpad' && S.lr) ? 'flex' : 'none';
+    scrBar.style.display = (S.mouseOn && S.scrollBtns) ? 'flex' : 'none';
     clampCur(); drawCursor(); publish('mode');
     if (S.mouseOn) mHover();
     fireMediaChange();
