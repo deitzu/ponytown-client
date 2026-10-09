@@ -214,3 +214,10 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 ## Fix 2026-10-08 (10) — new smali classes were never committed
 
 - `.gitignore` ignores `decoded/`; `PtPip.smali` and `PtWake.smali` were created but not tracked, so CI built APKs without them (`ClassNotFoundException: PtWake` crash in `PonyTownService.onCreate`; auto-PiP silently never ran because the missing `PtPip` was caught by try/catch). Both are now force-added. New smali files must be added with `git add -f`.
+
+## Update 2026-10-10 — Full keyboard preset, snap & align in the layout editor
+
+- New preset **Full keyboard**: 84-key tenkeyless layout (Esc/F-row, number row, QWERTY, home row, shift row, bottom row, Ins/Home/PgUp/Del/End/PgDn, arrows) positioned like a physical keyboard and scaled to the viewport. Keys can now have a width multiple (`k.w`), so Backspace/Tab/Caps/Enter/Shift/Space have their real proportions. New key names: `RShift`, `RCtrl`, `RAlt`, `Win`, `Menu`. The numpad cluster is not part of the preset (individual numpad digits exist).
+- Key font scales with key size; extra size options XXS/XS and custom sizes are shown correctly.
+- Layout editor: drag now keeps the grab offset and **snaps** to neighbouring keys/cursor controls (edge, centre, flush with a 3 px gap, screen edges, 12 px threshold) with guide lines; toggle "Snap & align" in the Keys tab (`S.snap`).
+- `ui.js` only; no smali changes.
