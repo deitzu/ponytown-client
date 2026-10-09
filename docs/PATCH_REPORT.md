@@ -1,9 +1,11 @@
 # Pony Town Mod — PATCH_REPORT
 
+> Chronological patch log. Sections up to "How to Sign & Install" describe the original Stage 2–4 patch (foreground service + JS injector) and are kept for history; the **Update / Fix** sections at the bottom describe everything added since. For the current feature set and build instructions see the [README](../README.md).
+
 **APK:** `town.pony.game v1.3-2387_antisplit.apk` (2.2 MB)
 **Package:** `town.pony.game` · label "Pony Town" · versionName `1.3-2387` / versionCode `2387`
 **SDK levels:** minSdk 23 (Android 6.0) · targetSdk 35 (Android 15) · compileSdk 36
-**Status:** **BUILD SUCCESS** — rebuilt APK at `decoded/dist/ponytown-patched.apk` (~2.28 MB)
+**Status (Stage 4):** build success. Current builds come from GitHub Actions (artifact `ponytown-patched-unsigned`).
 **Unsigned by design** — sign with MT Manager yourself. RTB: the original APK was already signed with the Android debug key; re-signing with MT Manager replaces it.
 
 ---
@@ -18,7 +20,7 @@
 | `smali/town/pony/game/mod/JsInjector.smali` | **NEW** — custom JavaScript injector |
 | `smali/y5/m.smali` | +2 hook calls: `JsInjector.onPageFinished(...)` (page-finished) and `JsInjector.onPageStarted(...)` (earliest-safe) |
 
-No auth, payment, billing, login, or network-protocol code was touched. No WakeLock, no new dependencies, no analytics, no data sent anywhere.
+No auth, payment, billing, login, or network-protocol code was touched. No WakeLock at that stage (an optional, user-toggled one was added later, see Update 9), no new dependencies, no analytics, no data sent anywhere.
 
 ---
 
@@ -29,7 +31,7 @@ No auth, payment, billing, login, or network-protocol code was touched. No WakeL
 - **Startup:** `MainActivity.onCreate` builds the intent (`Intent.setClassName(context, "town.pony.game.service.PonyTownService")`) and calls `startForegroundService()` on API 26+ / `startService()` below, wrapped in `try/catch(Throwable)` so a blocked start can never crash the game. A static once-per-process flag prevents duplicate starts when onCreate re-runs (rotation/PiP).
 - **Notification channel:** id `pony_town_running`, name "Pony Town Running", importance LOW, created on API 26+ inside `startAsForeground()`.
 - **Notification:** title exactly **"Pony Town Running"**, text exactly **"Keeping Pony Town active"**, `setOngoing(true)` (non-cancelable), fixed id 1, small icon `@mipmap/ic_launcher` (existing resource, id `0x7f0d0000`), tap → MainActivity via `PendingIntent.getActivity` (`FLAG_ACTIVITY_NEW_TASK` + `FLAG_IMMUTABLE`).
-- **Foreground:** `startForeground()` is called from the same `startAsForeground()` path in both `onCreate` and `onStartCommand`, so the 5-second window is always met. Returns `START_STICKY`. **No WakeLock anywhere.**
+- **Foreground:** `startForeground()` is called from the same `startAsForeground()` path in both `onCreate` and `onStartCommand`, so the 5-second window is always met. Returns `START_STICKY`. **No WakeLock at this stage** (optional toggle added in Update 9).
 - **Manifest additions:** `android.permission.POST_NOTIFICATIONS` (notification visible on Android 13+), `android.permission.FOREGROUND_SERVICE` (Android 12+), `android.permission.FOREGROUND_SERVICE_DATA_SYNC` (Android 14+ requirement for the declared type), and:
   ```xml
   <service android:name="town.pony.game.service.PonyTownService"

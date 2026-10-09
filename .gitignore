@@ -1,5 +1,6 @@
-# decoded APK working folder (large, regenerable via apktool)
-decoded/
-# local build artifacts
+# local build output
+build/
+decoded/dist/
 *.apk
+# the one tracked base APK that CI rebuilds from
 !town.pony.game v1.3-2387_antisplit.apk

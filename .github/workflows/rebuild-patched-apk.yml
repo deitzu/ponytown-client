@@ -9,7 +9,9 @@ on:
       - '.github/workflows/rebuild-patched-apk.yml'
   push:
     branches:
+      - main
       - 'fix/**'
+      - 'feat/**'
     paths:
       - 'decoded/**'
       - 'town.pony.game v1.3-2387_antisplit.apk'
@@ -60,6 +62,10 @@ jobs:
           cp -a decoded/. build/decoded/
           test -f build/decoded/smali/town/pony/game/mod/PtModBridge.smali
           test -f build/decoded/smali/town/pony/game/mod/PtInput.smali
+          test -f build/decoded/smali/town/pony/game/mod/PtPip.smali
+          test -f build/decoded/smali/town/pony/game/mod/PtWake.smali
+          test -f build/decoded/smali/town/pony/game/mod/JsInjector.smali
+          test -f build/decoded/smali/town/pony/game/service/PonyTownService.smali
           test -f build/decoded/assets/ptmod/ui.js
 
       - name: Rebuild unsigned APK
