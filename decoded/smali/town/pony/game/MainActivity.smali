@@ -74,6 +74,27 @@
     .line 1
     invoke-super {p0, p1}, Lb1/y;->onCreate(Landroid/os/Bundle;)V
 
+    # ---- PonyTown Mod: auto PiP (Lb/q.onUserLeaveHint is final -> use its listener list) ----
+    :try_start_pip
+    new-instance v0, Ltown/pony/game/mod/PtPip;
+
+    const/4 v1, 0x0
+
+    invoke-direct {v0, p0, v1, v1}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;IZ)V
+
+    iget-object v1, p0, Lb/q;->u:Ljava/util/concurrent/CopyOnWriteArrayList;
+
+    invoke-virtual {v1, v0}, Ljava/util/concurrent/CopyOnWriteArrayList;->add(Ljava/lang/Object;)Z
+    :try_end_pip
+    .catch Ljava/lang/Throwable; {:try_start_pip .. :try_end_pip} :catch_pip
+
+    goto :goto_pip_done
+
+    :catch_pip
+    move-exception v0
+
+    :goto_pip_done
+
     # ---- PonyTown Mod (Stage 2): start keep-alive foreground service once ----
     sget-boolean v0, Ltown/pony/game/service/PonyTownService;->sStarted:Z
 

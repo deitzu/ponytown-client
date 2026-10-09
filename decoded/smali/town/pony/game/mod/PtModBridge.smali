@@ -1,30 +1,24 @@
 #
-# PonyTown Mod (SAF picker): JS -> native bridge that lets the page open the
-# system file picker (SAF, ACTION_GET_CONTENT) and load the chosen .js file
-# into the game WebView.
+# PonyTown Mod: JS -> native bridge, registered with
+# WebView.addJavascriptInterface(obj, "PtModBridge") when the game WebView is
+# created (so window.PtModBridge exists on the very first page load).
 #
-# Why: on Android 11+ raw copies into /Android/data/... are not reachable by
-# the owner's tools, so the file-based custom.js drop-in cannot be tested.
-# The picker hands us a content:// Uri that we can read with the app's own
-# permission grant -- no storage permission needed.
+# JS-visible API (every call must carry the per-process token that
+# JsInjector hands ONLY to the built-in UI script -- other frames/pages that
+# can see window.PtModBridge cannot call anything without it):
+#   pickScript(token)                       open the system file picker (SAF)
+#   exec(token, code)                       evaluate JS in the game page
+#   mouseMove(token, x, y)                  real hover move   (physical px)
+#   mouseBtn(token, 1|2|3, x, y, buttons)   mouse down / move-held / up
+#   key(token, androidKeyCode, down)        real key down / up
+# Native work is done by PtInput on the UI thread. exec() and the picked-file
+# callback run only while the page is pony.town (JsInjector.isPonyTownUrl).
 #
-# Security property (unchanged): a picked script is executed ONLY when the
-# current page passes JsInjector.isPonyTownUrl(webView.getUrl()) -- i.e. host
-# is exactly "pony.town" or a "*.pony.town" subdomain.  The picker can be
-# opened from any page, but nothing runs outside pony.town.
+# The picked file is NOT executed here any more: its name + text are handed to
+# the UI script via window.__ptOnPicked(name, text); the script manager stores
+# it and decides when to run it.
 #
-# Design notes for the reviewer:
-# - Plain class (no Activity subclass), instantiated once per WebView and
-#   registered with WebView.addJavascriptInterface(obj, "PtModBridge").
-# - It also implements Runnable so pickScript() (which JS calls on the
-#   WebView JavaBridge thread) can hop to the UI thread via
-#   Activity.runOnUiThread(this) before touching the picker.
-# - Everything is wrapped in try/catch Throwable and never throws out.
-# - Register discipline: every method keeps one register per type/role so no
-#   merge point can see a register change between int and reference.  The
-#   scratch int runs in its own register, object registers are never reused
-#   for primitives.
-# - No permissions added, no Toast, no logging.
+# Everything is wrapped in try/catch Throwable and never throws out.
 #
 .class public final Ltown/pony/game/mod/PtModBridge;
 .super Ljava/lang/Object;
@@ -41,11 +35,15 @@
 # IdentityHashMap<WebView,Boolean> -- "this WebView already has the bridge".
 .field private static sBridgeMap:Ljava/util/IdentityHashMap;
 
-# Best-known Activity (from WebView.getContext()) and WebView, used by the
-# picker launch and by the result handler.
+# Best-known Activity (unwrapped from WebView.getContext()) and WebView.
 .field private static sActivity:Landroid/app/Activity;
 
 .field private static sWebView:Landroid/webkit/WebView;
+
+# Per-process random token required by every JS-visible call.
+.field private static sToken:Ljava/lang/String;
+
+.field public static sPipOff:Z
 
 # direct methods
 
@@ -58,11 +56,59 @@
 .end method
 
 # ---------------------------------------------------------------------------
+# public static String token()
+# Lazily creates the per-process token (UUID from SecureRandom).
+# ---------------------------------------------------------------------------
+.method public static token()Ljava/lang/String;
+    .locals 1
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sToken:Ljava/lang/String;
+
+    if-nez v0, :goto_have
+
+    invoke-static {}, Ljava/util/UUID;->randomUUID()Ljava/util/UUID;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Ljava/util/UUID;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    sput-object v0, Ltown/pony/game/mod/PtModBridge;->sToken:Ljava/lang/String;
+
+    :goto_have
+    return-object v0
+.end method
+
+# ---------------------------------------------------------------------------
+# private static boolean ok(String token)
+# ---------------------------------------------------------------------------
+.method private static ok(Ljava/lang/String;)Z
+    .locals 1
+
+    if-eqz p0, :goto_no
+
+    invoke-static {}, Ltown/pony/game/mod/PtModBridge;->token()Ljava/lang/String;
+
+    move-result-object v0
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    return v0
+
+    :goto_no
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
+# ---------------------------------------------------------------------------
 # public static void ensureBridge(WebView)
 # Idempotent per WebView: registers this class (named "PtModBridge") as a
 # JavaScript interface the first time the WebView is seen, and remembers the
-# WebView + its Activity for the picker.  Called from JsInjector.onPageFinished
-# on the UI thread, so the lazy map init below needs no locking.
+# WebView + its hosting Activity (found by unwrapping ContextWrappers).
 # ---------------------------------------------------------------------------
 .method public static ensureBridge(Landroid/webkit/WebView;)V
     .locals 6
@@ -87,17 +133,31 @@
 
     if-nez v5, :goto_ret
 
-    # remember the newest WebView and, if the context is an Activity, that too
+    # remember the newest WebView and the Activity hosting it
     sput-object p0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
 
     invoke-virtual {p0}, Landroid/webkit/WebView;->getContext()Landroid/content/Context;
 
     move-result-object v1
 
+    :goto_unwrap
     instance-of v5, v1, Landroid/app/Activity;
 
-    if-nez v5, :goto_ctx_done
+    if-nez v5, :goto_is_act
 
+    instance-of v5, v1, Landroid/content/ContextWrapper;
+
+    if-eqz v5, :goto_ctx_done
+
+    check-cast v1, Landroid/content/ContextWrapper;
+
+    invoke-virtual {v1}, Landroid/content/ContextWrapper;->getBaseContext()Landroid/content/Context;
+
+    move-result-object v1
+
+    goto :goto_unwrap
+
+    :goto_is_act
     check-cast v1, Landroid/app/Activity;
 
     sput-object v1, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
@@ -132,17 +192,22 @@
 .end method
 
 # ---------------------------------------------------------------------------
-# public void pickScript()
-# Called from the page (button click) through the "PtModBridge" JS interface.
+# public void pickScript(String token)      [JS-visible]
 # Runs on the WebView JavaBridge thread -> hop to the UI thread, then run().
 # ---------------------------------------------------------------------------
-.method public pickScript()V
+.method public pickScript(Ljava/lang/String;)V
     .locals 1
 
     .annotation runtime Landroid/webkit/JavascriptInterface;
     .end annotation
 
     :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
     sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
 
     if-eqz v0, :goto_ret
@@ -162,12 +227,453 @@
 .end method
 
 # ---------------------------------------------------------------------------
+# public void exec(String token, String code)     [JS-visible]
+# Evaluates `code` in the game page (PtInput mode 6, pony.town only).
+# ---------------------------------------------------------------------------
+.method public exec(Ljava/lang/String;Ljava/lang/String;)V
+    .locals 8
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
+
+    if-eqz v0, :goto_ret
+
+    const/4 v1, 0x6
+
+    const/4 v2, 0x0
+
+    const/4 v3, 0x0
+
+    const/4 v4, 0x0
+
+    const/4 v5, 0x0
+
+    move-object v6, p2
+
+    invoke-static/range {v0 .. v6}, Ltown/pony/game/mod/PtInput;->post(Landroid/webkit/WebView;IFFIILjava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+# public void mouseMove(String token, float x, float y)     [JS-visible]
+# Real hover move at (x, y) physical pixels inside the WebView.
+# ---------------------------------------------------------------------------
+.method public mouseMove(Ljava/lang/String;FF)V
+    .locals 8
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
+
+    if-eqz v0, :goto_ret
+
+    const/4 v1, 0x0
+
+    move v2, p2
+
+    move v3, p3
+
+    const/4 v4, 0x0
+
+    const/4 v5, 0x0
+
+    const/4 v6, 0x0
+
+    invoke-static/range {v0 .. v6}, Ltown/pony/game/mod/PtInput;->post(Landroid/webkit/WebView;IFFIILjava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+# public void mouseBtn(String token, int phase, float x, float y, int buttons)
+# phase 1 = button down, 2 = move while held, 3 = button up.
+# buttons: 1 = primary (left), 2 = secondary (right).      [JS-visible]
+# ---------------------------------------------------------------------------
+.method public mouseBtn(Ljava/lang/String;IFFI)V
+    .locals 8
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    const/4 v1, 0x1
+
+    if-lt p2, v1, :goto_ret
+
+    const/4 v1, 0x3
+
+    if-gt p2, v1, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
+
+    if-eqz v0, :goto_ret
+
+    move v1, p2
+
+    move v2, p3
+
+    move v3, p4
+
+    const/4 v4, 0x0
+
+    move v5, p5
+
+    const/4 v6, 0x0
+
+    invoke-static/range {v0 .. v6}, Ltown/pony/game/mod/PtInput;->post(Landroid/webkit/WebView;IFFIILjava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+# ---------------------------------------------------------------------------
+# public void mouseScroll(String token, float dx, float dy)     [JS-visible]
+# Native wheel/trackpad scroll.  dx = horizontal axis, dy = vertical axis.
+.end method
+# ---------------------------------------------------------------------------
+.method public mouseScroll(Ljava/lang/String;FFFF)V
+    .locals 9
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
+
+    if-eqz v0, :goto_ret
+
+    # x,y = cursor (physical px); dx,dy = wheel notches -> sent as ints * 100
+    const/high16 v7, 0x42c80000
+
+    mul-float v8, p5, v7
+
+    float-to-int v4, v8
+
+    mul-float v8, p4, v7
+
+    float-to-int v5, v8
+
+    const/4 v1, 0x7
+
+    move v2, p2
+
+    move v3, p3
+
+    const/4 v6, 0x0
+
+    invoke-static/range {v0 .. v6}, Ltown/pony/game/mod/PtInput;->post(Landroid/webkit/WebView;IFFIILjava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+# public void key(String token, int androidKeyCode, boolean down)  [JS-visible]
+.method public pipNow(Ljava/lang/String;)V
+    .locals 4
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    new-instance v1, Ltown/pony/game/mod/PtPip;
+
+    const/4 v2, 0x1
+
+    const/4 v3, 0x0
+
+    invoke-direct {v1, v0, v2, v3}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;IZ)V
+
+    invoke-virtual {v0, v1}, Landroid/app/Activity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+.method public setScreen(Ljava/lang/String;Z)V
+    .locals 4
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    new-instance v1, Ltown/pony/game/mod/PtPip;
+
+    const/4 v2, 0x2
+
+    invoke-direct {v1, v0, v2, p2}, Ltown/pony/game/mod/PtPip;-><init>(Landroid/app/Activity;IZ)V
+
+    invoke-virtual {v0, v1}, Landroid/app/Activity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+.method public setWake(Ljava/lang/String;Z)V
+    .locals 3
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    invoke-static {v0}, Ltown/pony/game/mod/PtWake;->isOn(Landroid/content/Context;)Z
+
+    move-result v1
+
+    if-eq v1, p2, :goto_ret
+
+    new-instance v1, Landroid/content/Intent;
+
+    invoke-direct {v1}, Landroid/content/Intent;-><init>()V
+
+    const-string v2, "town.pony.game.service.PonyTownService"
+
+    invoke-virtual {v1, v0, v2}, Landroid/content/Intent;->setClassName(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+
+    const-string v2, "town.pony.game.WAKE_TOGGLE"
+
+    invoke-virtual {v1, v2}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+
+    invoke-virtual {v0, v1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+.method public getWake(Ljava/lang/String;)Z
+    .locals 2
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    const/4 v1, 0x0
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    invoke-static {v0}, Ltown/pony/game/mod/PtWake;->isOn(Landroid/content/Context;)Z
+
+    move-result v1
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return v1
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
+.method public setPip(Ljava/lang/String;Z)V
+    .locals 1
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    xor-int/lit8 v0, p2, 0x1
+
+    sput-boolean v0, Ltown/pony/game/mod/PtModBridge;->sPipOff:Z
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+
+.method public key(Ljava/lang/String;IZ)V
+    .locals 8
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
+
+    if-eqz v0, :goto_ret
+
+    const/4 v1, 0x5
+
+    if-eqz p3, :goto_mode
+
+    const/4 v1, 0x4
+
+    :goto_mode
+    const/4 v2, 0x0
+
+    const/4 v3, 0x0
+
+    move v4, p2
+
+    const/4 v5, 0x0
+
+    const/4 v6, 0x0
+
+    invoke-static/range {v0 .. v6}, Ltown/pony/game/mod/PtInput;->post(Landroid/webkit/WebView;IFFIILjava/lang/String;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+# ---------------------------------------------------------------------------
 # public void run()  (Runnable -- always executed on the UI thread)
 # Launches the system file picker.  ACTION_GET_CONTENT + CATEGORY_OPENABLE
-# needs no permission and gives us a readable content:// Uri on every
-# supported Android version.  EXTRA_MIME_TYPES additionally lists the usual
-# JavaScript MIME types so a .js file is selectable whichever type the
-# picker/provider reports for it.
+# needs no permission and gives us a readable content:// Uri.
 # ---------------------------------------------------------------------------
 .method public run()V
     .locals 5
@@ -242,8 +748,7 @@
 # ---------------------------------------------------------------------------
 # public static void onActivityResult(int requestCode, int resultCode, Intent)
 # Called from MainActivity.onActivityResult.  Reads the picked document and
-# evaluates it in the stored WebView -- but only if that WebView currently
-# sits on a pony.town page (see injectIntoWebView).
+# hands (name, text) to the UI script -- see deliver().
 # ---------------------------------------------------------------------------
 .method public static onActivityResult(IILandroid/content/Intent;)V
     .locals 4
@@ -274,13 +779,13 @@
 
     move-result-object v3
 
-    invoke-static {v3}, Ltown/pony/game/mod/PtModBridge;->isEmptyText(Ljava/lang/String;)Z
+    if-eqz v3, :goto_ret
 
-    move-result v0
+    invoke-static {v1}, Ltown/pony/game/mod/PtModBridge;->pickedName(Landroid/net/Uri;)Ljava/lang/String;
 
-    if-eqz v0, :goto_ret
+    move-result-object v0
 
-    invoke-static {v3}, Ltown/pony/game/mod/PtModBridge;->injectIntoWebView(Ljava/lang/String;)V
+    invoke-static {v0, v3}, Ltown/pony/game/mod/PtModBridge;->deliver(Ljava/lang/String;Ljava/lang/String;)V
 
     :try_end_0
     .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
@@ -295,11 +800,59 @@
 .end method
 
 # ---------------------------------------------------------------------------
-# private static void injectIntoWebView(String script)
-# Hostname gate + defensive evaluate.  Same wrapper style as JsInjector.
+# private static String pickedName(Uri)
+# File name guess: last path segment after the final '/'  ("script.js" if none).
 # ---------------------------------------------------------------------------
-.method private static injectIntoWebView(Ljava/lang/String;)V
-    .locals 4
+.method private static pickedName(Landroid/net/Uri;)Ljava/lang/String;
+    .locals 3
+
+    :try_start_0
+    invoke-virtual {p0}, Landroid/net/Uri;->getLastPathSegment()Ljava/lang/String;
+
+    move-result-object v0
+
+    if-nez v0, :goto_have
+
+    const-string v0, "script.js"
+
+    return-object v0
+
+    :goto_have
+    const/16 v1, 0x2f
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->lastIndexOf(I)I
+
+    move-result v1
+
+    if-ltz v1, :goto_ret
+
+    add-int/lit8 v1, v1, 0x1
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->substring(I)Ljava/lang/String;
+
+    move-result-object v0
+
+    :goto_ret
+    return-object v0
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :catch_0
+    move-exception v0
+
+    const-string v0, "script.js"
+
+    return-object v0
+.end method
+
+# ---------------------------------------------------------------------------
+# private static void deliver(String name, String text)
+# UI thread.  Calls window.__ptOnPicked(name, text) in the game page, only if
+# the WebView currently sits on a pony.town page.
+# ---------------------------------------------------------------------------
+.method private static deliver(Ljava/lang/String;Ljava/lang/String;)V
+    .locals 3
 
     :try_start_0
     sget-object v0, Ltown/pony/game/mod/PtModBridge;->sWebView:Landroid/webkit/WebView;
@@ -312,23 +865,43 @@
 
     invoke-static {v1}, Ltown/pony/game/mod/JsInjector;->isPonyTownUrl(Ljava/lang/String;)Z
 
-    move-result v3
+    move-result v1
 
-    if-eqz v3, :goto_ret
+    if-eqz v1, :goto_ret
 
-    const-string v1, "(function(){ try { "
+    new-instance v1, Ljava/lang/StringBuilder;
 
-    invoke-virtual {v1, p0}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+    invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V
 
-    move-result-object v1
+    const-string v2, "window.__ptOnPicked&&window.__ptOnPicked("
 
-    const-string v2, " } catch(e) { console.error(\"Custom Script Error:\", e); } })();"
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    invoke-virtual {v1, v2}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+    invoke-static {p0}, Lorg/json/JSONObject;->quote(Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v2
 
-    invoke-static {v0, v2}, Ltown/pony/game/mod/PtModBridge;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    const-string v2, ","
+
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-static {p1}, Lorg/json/JSONObject;->quote(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    const-string v2, ");"
+
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {v0, v1}, Ltown/pony/game/mod/PtModBridge;->evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
 
     :try_end_0
     .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
@@ -344,8 +917,7 @@
 
 # ---------------------------------------------------------------------------
 # private static void evaluate(WebView, String js)
-# Defensive wrapper around evaluateJavascript (identical shape to
-# JsInjector.evaluate): the game must never crash because of injection.
+# Defensive wrapper around evaluateJavascript.
 # ---------------------------------------------------------------------------
 .method private static evaluate(Landroid/webkit/WebView;Ljava/lang/String;)V
     .locals 1
@@ -364,30 +936,6 @@
     move-exception v0
 
     goto :goto_ret
-.end method
-
-# ---------------------------------------------------------------------------
-# private static boolean isEmptyText(String)
-# ---------------------------------------------------------------------------
-.method private static isEmptyText(Ljava/lang/String;)Z
-    .locals 1
-
-    if-eqz p0, :cond_true
-
-    invoke-virtual {p0}, Ljava/lang/String;->length()I
-
-    move-result v0
-
-    if-nez v0, :cond_true
-
-    const/4 v0, 0x0
-
-    return v0
-
-    :cond_true
-    const/4 v0, 0x1
-
-    return v0
 .end method
 
 # ---------------------------------------------------------------------------

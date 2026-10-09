@@ -1,3 +1,5 @@
+> Historical Stage 1 analysis of the original APK (before any patch). Paths are relative to a full Apktool decode of the original APK.
+
 # PonyTown APK — Stage 1 Analysis (decode + map; no patches applied)
 
 Date: 2026-09-11 · Author: android-patch-engineer · Branch: `patch/analysis`
