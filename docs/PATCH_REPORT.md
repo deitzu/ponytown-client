@@ -221,3 +221,10 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 - Key font scales with key size; extra size options XXS/XS and custom sizes are shown correctly.
 - Layout editor: drag now keeps the grab offset and **snaps** to neighbouring keys/cursor controls (edge, centre, flush with a 3 px gap, screen edges, 12 px threshold) with guide lines; toggle "Snap & align" in the Keys tab (`S.snap`).
 - `ui.js` only; no smali changes.
+
+## Fix 2026-10-10 — overlay/mouse stop responding, game receives part of the touches
+
+- Likely cause: a `touchend`/`pointerup` that never reaches the mod (e.g. the game removes the element under the finger mid-touch). The virtual mouse stayed "held", on-screen keys/L/R/scroll timers stayed pressed, and the click-through override (`pointer-events:none` on overlay buttons under the cursor) was never restored — so overlay buttons stopped catching touches and the game received them instead.
+- Native: `PonyTownWebViewImpl.dispatchTouchEvent` now tracks the live finger count (`PtModBridge.sTouches`, JS call `getTouches`).
+- JS self-heal (`resetInput`): when the native finger count is 0 for two 200 ms ticks (or the last `touchend` was followed by 350 ms of busy state) the mod releases the mouse button, all keys, scroll timers, L/R state, tap state and click-through overrides. The click-through logic no longer detaches a node that is being pressed, and `mUp` always restores overrides.
+- Debug tab: **Input state** block (mouse held, L/R, keys down, touch id, click-through nodes, native finger count, number of auto-heals and the last reason) and a **Reset input state** button. If "auto-heals" is above 0 after a glitch, this was the cause.

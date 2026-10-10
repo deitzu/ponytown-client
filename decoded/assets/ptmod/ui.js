@@ -388,7 +388,9 @@
   }
 
   function tabDebug() {
-    return '<label class="f"><span><b>Event spy</b>: log what the page receives</span><input type="checkbox" data-a="spy"' + (spyOn ? ' checked' : '') + '></label>' +
+    var nt = nTouches();
+    var st = '<div class="hover"><b>Input state</b><div class="kv"><div>mouse held</div><div>' + held + '</div><div>L/R buttons down</div><div>' + btnHold + '</div><div>keys down</div><div>' + keysDown() + '</div><div>touch id</div><div>' + (tp.id === null ? '-' : tp.id) + '</div><div>click-through nodes</div><div>' + thruList.length + '</div><div>fingers (native)</div><div>' + (nt < 0 ? 'n/a' : nt) + '</div><div>auto-heals</div><div>' + heal.n + (heal.n ? ' (last: ' + esc(heal.last) + ')' : '') + '</div></div><div class="row"><button class="btn" data-a="resetinput">Reset input state</button><button class="btn" data-a="spyrefresh">Refresh</button></div></div>';
+    return st + '<label class="f"><span><b>Event spy</b>: log what the page receives</span><input type="checkbox" data-a="spy"' + (spyOn ? ' checked' : '') + '></label>' +
       '<div class="row"><button class="btn" data-a="spyrefresh">Refresh</button><button class="btn" data-a="spyclear">Clear</button></div>' +
       '<div class="muted">Turn on, close this panel, drag something in the game (and your own bubble), then reopen this tab. <b>trusted=true</b> = real native event, <b>false</b> = script-made. Moves are logged only while a button is down.</div>' +
       '<pre class="spy" id="spyout">' + esc(spyText()) + '</pre>';
@@ -513,6 +515,7 @@
       case 'ed-cancel': editing = null; render(); break;
       case 'ed-save': case 'ed-run': saveEditor(a === 'ed-run'); break;
       case 'pipnow': (function () { var b = B(); if (b && b.pipNow) { try { b.pipNow(T); } catch (e) { toast('PiP failed'); } } else toast('PiP not available'); })(); break;
+      case 'resetinput': resetInput('manual'); toast('Input state reset'); render(); break;
       case 'kedit': keysEdit = !keysEdit; buildKeys(); applyCtl(); render(); break;
       case 'ctlreset': S.ctlPos = {}; saveS(); applyCtl(); toast('Control layout reset'); break;
       case 'kadd': S.keys.push({ id: uid(), k: 'E', fx: 0.5, fy: 0.5, size: 56 }); saveS(); buildKeys(); render(); break;
@@ -654,7 +657,7 @@
     [keysLayer, ctlLayer].forEach(function (layer) {
       for (var i = 0; i < layer.children.length; i++) {
         var n = layer.children[i];
-        if (n === except || n.style.display === 'none') continue;
+        if (n === except || n.style.display === 'none' || / down/.test(' ' + n.className)) continue;   // never detach a node a finger is pressing
         var r = n.getBoundingClientRect();
         if (r.width && cur.x >= r.left && cur.x <= r.right && cur.y >= r.top && cur.y <= r.bottom) { n.style.pointerEvents = 'none'; thruList.push(n); }
       }
@@ -667,7 +670,7 @@
   }
   function mDrag() { if (held) { nBtn(2, cur.x, cur.y, held | ((S.dragMethod || 0) << 8)); emitTouch('touchmove'); } else mHover(); }
   function mUp() {
-    if (!held) return;
+    if (!held) { if (thruList.length && !thruTimer) thruTimer = setTimeout(thruEnd, 150); return; }
     var released = held;
     held = 0; nBtn(3, cur.x, cur.y, released); emitTouch('touchend'); drawCursor(); publish('up'); mHover();
     if (thruList.length) { clearTimeout(thruTimer); thruTimer = setTimeout(thruEnd, 150); }
@@ -708,6 +711,7 @@
     { id: 'pd', label: '⇟', dy: -6.0, every: 180, w: 54, h: 46, fx: 0.95, fy: 0.66, grp: 'sc' }
   ];
   var ctlNodes = {};
+  var ctlStops = [];
   // Snap/align a dragged overlay node (keys + cursor controls) to its neighbours: edges, centres and
   // flush placement with a fixed gap. (cx, cy) = wanted centre in px. Returns the adjusted centre.
   function hideGuides() { guideV.style.display = 'none'; guideH.style.display = 'none'; }
@@ -774,6 +778,7 @@
         }
         cls(false);
       }
+      ctlStops.push(function () { stop(); });
       b.addEventListener('pointerdown', function (e) {
         if (e.pointerType === 'mouse' && !keysEdit) return;   // the virtual cursor never presses our own controls
         e.preventDefault();
@@ -1051,13 +1056,53 @@
     });
   }
 
+  // ------------------------------------------------------------------ self-heal (stuck input)
+  // If a touchend/pointerup never reaches us (the game removed the element under the finger, a gesture was
+  // taken over, ...) the mouse button, keys, scroll timers and the click-through overrides on overlay
+  // buttons could stay "held" forever: overlay + cursor stop responding and touches fall through to the game.
+  // Truth source: the native finger count of the WebView (bridge.getTouches). With zero fingers on screen
+  // nothing may stay pressed.
+  var heal = { n: 0, last: '-', lastAt: 0 };
+  var lastTouchStart = 0;
+  function nTouches() { var b = B(); if (b && b.getTouches) { try { return b.getTouches(T); } catch (e) { /* ignore */ } } return -1; }
+  function keysDown() { return Object.keys(pressedKeys).length; }
+  function inputBusy() { return !!(held || tp.id !== null || btnHold > 0 || keysDown()); }
+  function resetInput(why, silent) {
+    var busy = inputBusy();
+    try { ctlStops.forEach(function (f) { f(); }); } catch (e) { /* ignore */ }
+    releaseAllKeys();
+    btnHold = 0; tp.id = null; tp.two = false; tp.twoMoved = false; tp.drag = false;
+    if (held) mUp();
+    thruEnd();
+    if (busy && !silent) { heal.n++; heal.last = why; heal.lastAt = Date.now(); publish('heal'); }
+    return busy;
+  }
+  window.addEventListener('touchstart', function () { lastTouchStart = Date.now(); }, { capture: true, passive: true });
+  ['touchend', 'touchcancel'].forEach(function (t) {
+    window.addEventListener(t, function (e) {
+      if (e.touches && e.touches.length === 0) {
+        var t0 = Date.now();
+        setTimeout(function () { if (lastTouchStart < t0 && inputBusy()) resetInput('last finger lifted'); }, 350);
+      }
+    }, { capture: true, passive: true });
+  });
+  var zeroTicks = 0;
+  setInterval(function () {
+    var n = nTouches();
+    if (n === 0) {
+      zeroTicks++;
+      if (zeroTicks >= 2) { if (inputBusy()) resetInput('no fingers on screen'); else if (thruList.length && !thruTimer) thruEnd(); }
+    }
+    else zeroTicks = 0;
+  }, 200);
+
   // ------------------------------------------------------------------ lifecycle
   window.addEventListener('resize', function () {
     placeFab(); clampCur(); drawCursor(); applyCtl(); checkPip();
     var nodes = keysLayer.children;
     for (var i = 0; i < nodes.length && i < S.keys.length; i++) placeKey(nodes[i], S.keys[i]);
   });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) { releaseAllKeys(); mUp(); } });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) resetInput('app hidden', true); });
 
   function checkPip() { try { host.style.display = (window.innerWidth < 520 && window.innerHeight < 330) ? 'none' : ''; } catch (e) { /* ignore */ } }
 

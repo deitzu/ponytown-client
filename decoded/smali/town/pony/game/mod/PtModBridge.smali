@@ -45,6 +45,9 @@
 
 .field public static sPipOff:Z
 
+# live finger count on the game WebView (updated from PonyTownWebViewImpl.dispatchTouchEvent)
+.field public static sTouches:I
+
 # direct methods
 
 .method public constructor <init>()V
@@ -592,6 +595,35 @@
 .end method
 
 # ---------------------------------------------------------------------------
+.method public getTouches(Ljava/lang/String;)I
+    .locals 2
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    const/4 v1, -0x1
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget v1, Ltown/pony/game/mod/PtModBridge;->sTouches:I
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return v1
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
 .method public setPip(Ljava/lang/String;Z)V
     .locals 1
 
