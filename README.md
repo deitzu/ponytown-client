@@ -60,7 +60,8 @@ Options:
 ### On-screen keys
 
 - Keys: A–Z, 0–9, arrows, Space, Shift, Ctrl, Alt, Tab, Esc, Enter, Backspace, **F1–F12**, numpad 0–9, Del/Ins/Home/End/PgUp/PgDn/Caps and US-layout symbols (`- = [ ] \ ; ' , . / \`` and the shifted `! @ # $ % ^ & * ( ) _ + { } | : " < > ? ~`)
-- Presets: WASD, WASD + Space/Shift, Arrows; add, remove, resize and drag keys in **Edit layout** mode
+- Presets: WASD, WASD + Space/Shift, Arrows and **Full keyboard** (84-key tenkeyless layout placed like a physical keyboard, scaled to the screen); add, remove, resize and drag keys in **Edit layout** mode
+- **Snap & align** while dragging in Edit layout: keys and cursor controls snap to neighbours' edges and centres, sit flush with a small gap next to each other, and snap to screen edges (yellow guide lines; can be turned off)
 - Opacity and transparent-background options
 - **Slide between keys** (global toggle plus per-key on/off): a finger that leaves a key releases it without lifting; gliding onto a neighbouring key presses it
 - Sent as real Android key events (native) or page `KeyboardEvent`s (synthetic)

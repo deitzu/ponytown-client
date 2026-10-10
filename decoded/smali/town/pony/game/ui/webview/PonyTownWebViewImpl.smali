@@ -2336,6 +2336,56 @@
     return-void
 .end method
 
+.method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z
+    .locals 3
+
+    :try_start_t
+    invoke-virtual {p1}, Landroid/view/MotionEvent;->getActionMasked()I
+
+    move-result v0
+
+    invoke-virtual {p1}, Landroid/view/MotionEvent;->getPointerCount()I
+
+    move-result v1
+
+    const/4 v2, 0x1
+
+    if-eq v0, v2, :cond_t_zero
+
+    const/4 v2, 0x3
+
+    if-eq v0, v2, :cond_t_zero
+
+    const/4 v2, 0x6
+
+    if-ne v0, v2, :cond_t_set
+
+    add-int/lit8 v1, v1, -0x1
+
+    goto :cond_t_set
+
+    :cond_t_zero
+    const/4 v1, 0x0
+
+    :cond_t_set
+    sput v1, Ltown/pony/game/mod/PtModBridge;->sTouches:I
+
+    :try_end_t
+    .catch Ljava/lang/Throwable; {:try_start_t .. :try_end_t} :catch_t
+
+    goto :goto_t_done
+
+    :catch_t
+    move-exception v0
+
+    :goto_t_done
+    invoke-super {p0, p1}, Ly5/a;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z
+
+    move-result v0
+
+    return v0
+.end method
+
 .method public final getPullToRefresh()Lv5/a;
     .locals 1
 
