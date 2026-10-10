@@ -116,7 +116,7 @@
   var DEF = {
     mouseOn: false, dragMethod: 0, touchCompat: false, fixEvents: true, mouseMode: 'touch', sens: 1.6, cursor: true, cursorSize: 28, lr: true, scrollOn: true, scrollBtns: true, scrollMode: 'native', spoofMedia: true,
     keysOn: false, keyMode: 'native', keyOpacity: 0.55, keyNoFill: false, keys: null,
-    keySlide: true, snap: true, pip: true, screenOn: false, ctlOpacity: 0.9, ctlNoFill: false, ctlSize: 1, ctlPos: {},
+    apps: [{ id: 'discord', name: 'Discord', url: 'https://discord.com/app', desktop: true }], appSize: 1, appBottom: false, keySlide: true, snap: true, pip: true, screenOn: false, ctlOpacity: 0.9, ctlNoFill: false, ctlSize: 1, ctlPos: {},
     fab: { fx: 0.97, fy: 0.12 }, tab: 'scripts'
   };
   var S = lsGet(LS_S, {});
@@ -299,11 +299,11 @@
 
   function render() {
     if (panel.hidden) return;
-    var tabs = [['scripts', 'Scripts'], ['mouse', 'Mouse'], ['keys', 'Keys'], ['debug', 'Debug'], ['about', 'About']];
+    var tabs = [['scripts', 'Scripts'], ['apps', 'Apps'], ['mouse', 'Mouse'], ['keys', 'Keys'], ['debug', 'Debug'], ['about', 'About']];
     var h = '<div class="tabs">';
     tabs.forEach(function (t) { h += '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" data-a="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; });
     h += '<button class="x" data-a="close">✕</button></div><div class="body" id="body">';
-    h += (S.tab === 'mouse') ? tabMouse() : (S.tab === 'keys') ? tabKeys() : (S.tab === 'about') ? tabAbout() : (S.tab === 'debug') ? tabDebug() : tabScripts();
+    h += (S.tab === 'apps') ? tabApps() : (S.tab === 'mouse') ? tabMouse() : (S.tab === 'keys') ? tabKeys() : (S.tab === 'about') ? tabAbout() : (S.tab === 'debug') ? tabDebug() : tabScripts();
     h += '</div>';
     panel.innerHTML = h;
     if (S.tab === 'mouse') { bindHoverTest(); bindDragTest(); }
@@ -328,6 +328,36 @@
     if (!scripts.length) h += '<div class="muted">No scripts yet. Tap "Load .js file" to pick one from your phone, or "New" to paste code.</div>';
     h += '<div class="muted">Run timing: <b>start</b> = as early as possible, <b>ready</b> = DOMContentLoaded, <b>load</b> = window load.</div>';
     return h;
+  }
+
+  function normUrl(u) {
+    u = String(u || '').trim();
+    if (!u) return null;
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+    try { var x = new URL(u); if (x.protocol !== 'https:' && x.protocol !== 'http:') return null; return x.href; } catch (e) { return null; }
+  }
+  function tabApps() {
+    var h = '<div class="muted">Mini browser: a small native window floating over the game. It can only open the web apps saved here. It is created on open and destroyed on close (low RAM) and has no access to the mod bridge.</div>';
+    h += '<div class="row"><button class="btn danger" data-a="appclose">Close mini browser</button></div>';
+    h += '<label class="f"><span>Size</span><select data-a="appsize">' + [['0', 'Small (40%)'], ['1', 'Medium (65%)'], ['2', 'Full']].map(function (o) { return '<option value="' + o[0] + '"' + (String(S.appSize) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>';
+    h += '<label class="f"><span>Dock at bottom</span><input type="checkbox" data-a="appbottom"' + (S.appBottom ? ' checked' : '') + '></label>';
+    (S.apps || []).forEach(function (a) {
+      h += '<div class="item"><div class="name">' + esc(a.name) + ' <small>' + esc(a.url) + '</small></div>' +
+        '<label class="f"><span>Desktop</span><input type="checkbox" data-a="appdesk" data-id="' + a.id + '"' + (a.desktop ? ' checked' : '') + '></label>' +
+        '<button class="btn pri" data-a="appopen" data-id="' + a.id + '">Open</button><button class="btn danger" data-a="appdel" data-id="' + a.id + '">Remove</button></div>';
+    });
+    if (!(S.apps || []).length) h += '<div class="muted">No web apps yet.</div>';
+    h += '<div class="muted"><b>Add web app</b></div><input type="text" id="app-name" placeholder="Name (e.g. Discord)"><div class="row"></div><input type="text" id="app-url" placeholder="URL (e.g. discord.com/app)" autocapitalize="off" autocomplete="off">';
+    h += '<div class="row"><button class="btn pri" data-a="appadd">Add</button></div>';
+    h += '<div class="muted">Tips: turn on <b>Desktop</b> for Discord. Google sign-in does not work in a WebView; use email/password or QR code. Voice/mic is not supported.</div>';
+    return h;
+  }
+  function openApp(a) {
+    var b = B();
+    if (!b || !b.openApp) { toast('Mini browser needs the updated app'); return; }
+    var u = normUrl(a.url);
+    if (!u) { toast('Invalid URL'); return; }
+    try { b.openApp(T, u, parseInt(S.appSize, 10) || 0, !!S.appBottom, !!a.desktop); togglePanel(false); } catch (e) { toast('Could not open'); }
   }
 
   function tabMouse() {
@@ -517,6 +547,16 @@
       case 'pipnow': (function () { var b = B(); if (b && b.pipNow) { try { b.pipNow(T); } catch (e) { toast('PiP failed'); } } else toast('PiP not available'); })(); break;
       case 'resetinput': resetInput('manual'); toast('Input state reset'); render(); break;
       case 'kedit': keysEdit = !keysEdit; buildKeys(); applyCtl(); render(); break;
+      case 'appopen': (S.apps || []).forEach(function (a) { if (a.id === id) openApp(a); }); break;
+      case 'appdel': S.apps = (S.apps || []).filter(function (a) { return a.id !== id; }); saveS(); render(); break;
+      case 'appclose': (function () { var b = B(); if (b && b.closeApp) { try { b.closeApp(T); } catch (e) { /* ignore */ } } })(); break;
+      case 'appadd': (function () {
+        var n = panel.querySelector('#app-name'), u = panel.querySelector('#app-url');
+        var url = normUrl(u && u.value), name = ((n && n.value) || '').trim();
+        if (!url) { toast('Enter a valid http(s) URL'); return; }
+        if (!name) { try { name = new URL(url).hostname; } catch (e) { name = 'App'; } }
+        S.apps = (S.apps || []).concat([{ id: uid(), name: name, url: url, desktop: false }]); saveS(); render(); toast('Added ' + name);
+      })(); break;
       case 'ctlreset': S.ctlPos = {}; saveS(); applyCtl(); toast('Control layout reset'); break;
       case 'kadd': S.keys.push({ id: uid(), k: 'E', fx: 0.5, fy: 0.5, size: 56 }); saveS(); buildKeys(); render(); break;
       case 'kpreset': S.keys = presetKeys(v); saveS(); buildKeys(); render(); break;
@@ -553,6 +593,9 @@
       case 'keyMode': S.keyMode = t.value; saveS(); break;
       case 'kkey': S.keys.forEach(function (k) { if (k.id === id) k.k = t.value; }); saveS(); buildKeys(); break;
       case 'kslide': S.keys.forEach(function (k) { if (k.id === id) k.slide = t.value === '' ? undefined : t.value === '1'; }); saveS(); break;
+      case 'appsize': S.appSize = parseInt(t.value, 10) || 0; saveS(); break;
+      case 'appbottom': S.appBottom = t.checked; saveS(); break;
+      case 'appdesk': (S.apps || []).forEach(function (a) { if (a.id === id) a.desktop = t.checked; }); saveS(); break;
       case 'snap': S.snap = t.checked; saveS(); break;
       case 'keySlide': S.keySlide = t.checked; saveS(); break;
       case 'wake': (function () { var b = B(); if (b && b.setWake) { try { b.setWake(T, t.checked); } catch (e) { /* ignore */ } } setTimeout(render, 400); })(); break;

@@ -595,6 +595,94 @@
 .end method
 
 # ---------------------------------------------------------------------------
+.method public openApp(Ljava/lang/String;Ljava/lang/String;IZZ)V
+    .locals 5
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    and-int/lit8 v1, p3, 0xf
+
+    if-eqz p4, :cond_nodock
+
+    or-int/lit8 v1, v1, 0x10
+
+    :cond_nodock
+    if-eqz p5, :cond_nodesk
+
+    or-int/lit8 v1, v1, 0x20
+
+    :cond_nodesk
+    new-instance v2, Ltown/pony/game/mod/PtBrowser;
+
+    const/4 v3, 0x0
+
+    invoke-direct {v2, v0, v3, p2, v1}, Ltown/pony/game/mod/PtBrowser;-><init>(Landroid/app/Activity;ILjava/lang/String;I)V
+
+    invoke-virtual {v0, v2}, Landroid/app/Activity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
+.method public closeApp(Ljava/lang/String;)V
+    .locals 4
+
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p1}, Ltown/pony/game/mod/PtModBridge;->ok(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :goto_ret
+
+    sget-object v0, Ltown/pony/game/mod/PtModBridge;->sActivity:Landroid/app/Activity;
+
+    if-eqz v0, :goto_ret
+
+    new-instance v1, Ltown/pony/game/mod/PtBrowser;
+
+    const/4 v2, 0x1
+
+    const/4 v3, 0x0
+
+    invoke-direct {v1, v0, v2, v3, v3}, Ltown/pony/game/mod/PtBrowser;-><init>(Landroid/app/Activity;ILjava/lang/String;I)V
+
+    invoke-virtual {v0, v1}, Landroid/app/Activity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :goto_ret
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    goto :goto_ret
+.end method
+
 .method public getTouches(Ljava/lang/String;)I
     .locals 2
 

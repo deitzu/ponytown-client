@@ -228,3 +228,10 @@ Event-spy result from the device: the game canvas reacts to native mouse drag (c
 - Native: `PonyTownWebViewImpl.dispatchTouchEvent` now tracks the live finger count (`PtModBridge.sTouches`, JS call `getTouches`).
 - JS self-heal (`resetInput`): when the native finger count is 0 for two 200 ms ticks (or the last `touchend` was followed by 350 ms of busy state) the mod releases the mouse button, all keys, scroll timers, L/R state, tap state and click-through overrides. The click-through logic no longer detaches a node that is being pressed, and `mUp` always restores overrides.
 - Debug tab: **Input state** block (mouse held, L/R, keys down, touch id, click-through nodes, native finger count, number of auto-heals and the last reason) and a **Reset input state** button. If "auto-heals" is above 0 after a glitch, this was the cause.
+
+## Update 2026-10-10 — Mini browser (Apps tab)
+
+- New class `PtBrowser`: an isolated second `WebView` added with `Activity.addContentView` over the game (top/bottom dock, 40%/65%/100% height). Toolbar: back, reload, host, size cycle, dock flip, close. No `addJavascriptInterface` (no bridge/token), only `http(s)` URLs, file/content access off, optional desktop user agent (for Discord). Created on open, `destroy()`ed on close to free RAM.
+- Bridge: `openApp(token, url, size, bottom, desktop)` and `closeApp(token)` (`PtModBridge`).
+- `ui.js`: **Apps** tab with saved web apps (`S.apps`, Discord preset), add/remove/open, default size/dock, per-app Desktop UA. Launch is possible only from the saved list.
+- Limitations: no mic/voice, Google sign-in blocked in WebViews, no Android back-button handling yet. Runtime untested (CI only proves the build).

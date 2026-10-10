@@ -26,7 +26,7 @@ This is a personal modding/research project and is **not an official Pony Town c
 
 ## Features
 
-Everything is configured from the floating **PT** button, which opens the mod panel (tabs: **Scripts · Mouse · Keys · Debug · About**). The button can be dragged anywhere.
+Everything is configured from the floating **PT** button, which opens the mod panel (tabs: **Scripts · Apps · Mouse · Keys · Debug · About**). The button can be dragged anywhere.
 
 ### Script manager
 
@@ -74,6 +74,16 @@ Options:
 - **Keep screen on** while the game is open (separate toggle)
 - **Picture-in-Picture**: *Enter Picture-in-Picture now* button in **About**, plus optional auto-PiP when you leave the app (device/ROM dependent). The overlay hides itself in a small PiP window
 
+### Mini browser (Apps tab)
+
+A small native window (second WebView) floating over the game, e.g. for Discord without switching apps.
+
+- Save **web apps** (name + URL); the browser can **only** be launched from this list
+- Size: small (40%) / medium (65%) / full, docked top or bottom; toolbar with back, reload, size, dock flip and close
+- Optional **Desktop** user agent per app (recommended for Discord)
+- Isolated: no JS bridge or mod token, only `http(s)` URLs. Created on open and destroyed on close to save RAM
+- Not supported: voice/mic; Google sign-in is blocked in WebViews (use email/password or QR)
+
 ### Debug tools
 
 The **Debug** tab has an event spy (what the page actually receives, and whether events are trusted), a drag test area and a hover test area.
@@ -90,6 +100,7 @@ Pony Town WebView
                     ├── scripts   pickScript, exec
                     ├── input     mouseMove, mouseBtn, mouseScroll, key ──► PtInput ──► MotionEvent / KeyEvent
                     └── system    setPip, pipNow, setScreen, setWake, getWake ──► PtPip / PtWake / PonyTownService
+                    └── apps      openApp, closeApp ──► PtBrowser
 ```
 
 | Component | Role |
@@ -100,6 +111,7 @@ Pony Town WebView
 | `PtInput` | Builds Android `MotionEvent`/`KeyEvent` objects and posts them on the UI thread |
 | `PonyTownService` | Foreground service and notification (with wake-lock action) |
 | `PtWake` / `PtPip` | Wake lock state, PiP and keep-screen-on helpers |
+| `PtBrowser` | Isolated floating mini-browser WebView (Apps tab) |
 | `MainActivity`, `PonyTownWebViewImpl`, `y5/m` | Small hooks into the original app (service start, bridge registration, page callbacks, file-picker result, user-leave-hint listener) |
 
 Native mouse events use `dispatchGenericMotionEvent()` with `SOURCE_MOUSE`: `ACTION_HOVER_MOVE` for hover/drag, `ACTION_BUTTON_PRESS`/`RELEASE` for buttons and `ACTION_SCROLL` for the wheel.
@@ -113,7 +125,7 @@ Native mouse events use `dispatchGenericMotionEvent()` with `SOURCE_MOUSE`: `ACT
 │   ├── assets/ptmod/ui.js
 │   └── smali/
 │       ├── town/pony/game/MainActivity.smali
-│       ├── town/pony/game/mod/      JsInjector, PtInput, PtModBridge, PtPip, PtWake
+│       ├── town/pony/game/mod/      JsInjector, PtInput, PtModBridge, PtPip, PtWake, PtBrowser
 │       ├── town/pony/game/service/  PonyTownService
 │       ├── town/pony/game/ui/webview/PonyTownWebViewImpl.smali
 │       └── y5/m.smali

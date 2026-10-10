@@ -64,6 +64,7 @@ jobs:
           test -f build/decoded/smali/town/pony/game/mod/PtInput.smali
           test -f build/decoded/smali/town/pony/game/mod/PtPip.smali
           test -f build/decoded/smali/town/pony/game/mod/PtWake.smali
+          test -f build/decoded/smali/town/pony/game/mod/PtBrowser.smali
           test -f build/decoded/smali/town/pony/game/mod/JsInjector.smali
           test -f build/decoded/smali/town/pony/game/service/PonyTownService.smali
           test -f build/decoded/assets/ptmod/ui.js
